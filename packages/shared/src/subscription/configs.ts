@@ -34,6 +34,7 @@ export const SUBSCRIPTION_PROVIDER_CONFIGS: Readonly<
       }),
       supportsPromptCaching: true,
       supportsBatching: false,
+      quotaCheck: true,
     }),
   }),
   byteplus: Object.freeze({
@@ -82,6 +83,7 @@ export const SUBSCRIPTION_PROVIDER_CONFIGS: Readonly<
       }),
       supportsPromptCaching: true,
       supportsBatching: false,
+      quotaCheck: true,
     }),
   }),
   minimax: Object.freeze({
@@ -104,6 +106,7 @@ export const SUBSCRIPTION_PROVIDER_CONFIGS: Readonly<
       maxContextWindow: 1000000,
       supportsPromptCaching: true,
       supportsBatching: false,
+      quotaCheck: true,
     }),
   }),
   mistral: Object.freeze({
@@ -170,6 +173,7 @@ export const SUBSCRIPTION_PROVIDER_CONFIGS: Readonly<
       }),
       supportsPromptCaching: true,
       supportsBatching: false,
+      quotaCheck: true,
     }),
   }),
   nous: Object.freeze({
@@ -285,6 +289,7 @@ export const SUBSCRIPTION_PROVIDER_CONFIGS: Readonly<
       maxContextWindow: 500000,
       supportsPromptCaching: true,
       supportsBatching: false,
+      quotaCheck: true,
     }),
   }),
   copilot: Object.freeze({
