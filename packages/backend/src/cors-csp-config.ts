@@ -9,6 +9,7 @@ export const HOSTED_WINGMAN_ORIGIN = 'https://wingman.manifest.build';
 export interface DevOriginBuilderOptions {
   configuredOrigin: string;
   wingmanPort: number;
+  allowHostedWingman?: boolean;
 }
 
 export interface ProdOriginBuilderOptions {
@@ -18,6 +19,7 @@ export interface ProdOriginBuilderOptions {
    * gateway opt it in without a code change.
    */
   extraOrigins?: string;
+  allowHostedWingman?: boolean;
 }
 
 export interface FrameSrcOptions {
@@ -28,6 +30,7 @@ export interface FrameSrcOptions {
 export function buildDevAllowedOrigins({
   configuredOrigin,
   wingmanPort,
+  allowHostedWingman = true,
 }: DevOriginBuilderOptions): string[] {
   return Array.from(
     new Set([
@@ -35,7 +38,7 @@ export function buildDevAllowedOrigins({
       `http://localhost:${wingmanPort}`,
       `http://127.0.0.1:${wingmanPort}`,
       'http://localhost:3002',
-      HOSTED_WINGMAN_ORIGIN,
+      ...(allowHostedWingman ? [HOSTED_WINGMAN_ORIGIN] : []),
     ]),
   );
 }
@@ -46,7 +49,10 @@ export function buildDevAllowedOrigins({
 // `/v1/messages`), so production must allow its origin. Exact match only, and
 // `credentials: false` at the call site keeps this safe: an allow-listed origin
 // still needs the user's own bearer key and no session cookie can ride along.
-export function buildProdAllowedOrigins({ extraOrigins }: ProdOriginBuilderOptions = {}): string[] {
+export function buildProdAllowedOrigins({
+  extraOrigins,
+  allowHostedWingman = true,
+}: ProdOriginBuilderOptions = {}): string[] {
   const extras = (extraOrigins ?? '')
     .split(',')
     // Strip a trailing slash: browser `Origin` headers never carry one, so an
@@ -54,7 +60,7 @@ export function buildProdAllowedOrigins({ extraOrigins }: ProdOriginBuilderOptio
     // match otherwise.
     .map((v) => v.trim().replace(/\/+$/, ''))
     .filter((v) => v.length > 0);
-  return Array.from(new Set([HOSTED_WINGMAN_ORIGIN, ...extras]));
+  return Array.from(new Set([...(allowHostedWingman ? [HOSTED_WINGMAN_ORIGIN] : []), ...extras]));
 }
 
 export function buildFrameSrc({ isDev, wingmanPort }: FrameSrcOptions): string[] {

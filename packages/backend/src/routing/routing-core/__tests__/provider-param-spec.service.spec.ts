@@ -235,6 +235,7 @@ describe('ProviderParamSpecService API refresh', () => {
     fetchSpy.mockRestore();
     delete process.env.MODELPARAMS_API_DISABLED;
     delete process.env.MODELPARAMS_API_URL;
+    delete process.env.MANIFEST_PRIVACY_MODE;
   });
 
   it('swaps in a fetched catalog and remembers its ETag', async () => {
@@ -266,6 +267,14 @@ describe('ProviderParamSpecService API refresh', () => {
 
   it('does nothing when MODELPARAMS_API_DISABLED is set', async () => {
     process.env.MODELPARAMS_API_DISABLED = 'true';
+    const service = new ProviderParamSpecService();
+
+    await expect(service.refreshCatalog()).resolves.toBe(false);
+    expect(fetchSpy).not.toHaveBeenCalled();
+  });
+
+  it('does nothing in privacy mode', async () => {
+    process.env.MANIFEST_PRIVACY_MODE = 'true';
     const service = new ProviderParamSpecService();
 
     await expect(service.refreshCatalog()).resolves.toBe(false);

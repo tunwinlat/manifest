@@ -57,6 +57,7 @@ describe('SetupController', () => {
         ollamaAvailable: false,
         localLlmHost: 'localhost',
         emailConfigured: true,
+        privacyMode: false,
       });
     });
 
@@ -70,6 +71,7 @@ describe('SetupController', () => {
         ollamaAvailable: false,
         localLlmHost: 'localhost',
         emailConfigured: true,
+        privacyMode: false,
       });
     });
 
@@ -84,6 +86,7 @@ describe('SetupController', () => {
         ollamaAvailable: false,
         localLlmHost: 'localhost',
         emailConfigured: true,
+        privacyMode: false,
       });
     });
 
@@ -99,6 +102,7 @@ describe('SetupController', () => {
         ollamaAvailable: false,
         localLlmHost: 'localhost',
         emailConfigured: true,
+        privacyMode: false,
       });
     });
 
@@ -114,6 +118,7 @@ describe('SetupController', () => {
         ollamaAvailable: true,
         localLlmHost: 'localhost',
         emailConfigured: true,
+        privacyMode: false,
       });
     });
 

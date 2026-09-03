@@ -27,6 +27,12 @@ describe('buildTelemetryConfig', () => {
     ).toBe(false);
   });
 
+  it('is disabled by strict privacy mode even without the telemetry-specific flag', () => {
+    expect(
+      buildTelemetryConfig({ NODE_ENV: 'production', MANIFEST_PRIVACY_MODE: 'true' }).enabled,
+    ).toBe(false);
+  });
+
   it('ignores unrecognised disable values (opt-out must be explicit)', () => {
     expect(
       buildTelemetryConfig({ NODE_ENV: 'production', MANIFEST_TELEMETRY_DISABLED: 'yes' }).enabled,

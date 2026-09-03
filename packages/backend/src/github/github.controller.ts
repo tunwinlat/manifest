@@ -1,5 +1,6 @@
 import { Controller, Get } from '@nestjs/common';
 import { Public } from '../common/decorators/public.decorator';
+import { isPrivacyMode } from '../common/utils/privacy-mode';
 
 const GITHUB_REPO = 'mnfst/manifest';
 const CACHE_TTL_MS = 10 * 60 * 1000; // 10 minutes
@@ -12,6 +13,7 @@ export class GithubController {
   @Public()
   @Get('github/stars')
   async getStars(): Promise<{ stars: number | null }> {
+    if (isPrivacyMode()) return { stars: null };
     if (cachedStars !== null && Date.now() - cachedAt < CACHE_TTL_MS) {
       return { stars: cachedStars };
     }

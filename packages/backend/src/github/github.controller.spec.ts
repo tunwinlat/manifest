@@ -2,6 +2,7 @@ const fetchMock = jest.fn();
 (global as unknown as Record<string, unknown>).fetch = fetchMock;
 
 describe('GithubController', () => {
+  const originalPrivacyMode = process.env['MANIFEST_PRIVACY_MODE'];
   let controller: InstanceType<typeof import('./github.controller').GithubController>;
   // Capture the real Date.now once at module load so individual tests can
   // overwrite Date.now safely. afterEach restores it unconditionally so a
@@ -15,6 +16,7 @@ describe('GithubController', () => {
   }
 
   beforeEach(async () => {
+    delete process.env['MANIFEST_PRIVACY_MODE'];
     jest.resetModules();
     fetchMock.mockReset();
     controller = await freshImport();
@@ -23,6 +25,8 @@ describe('GithubController', () => {
   afterEach(() => {
     // Restore Date.now even when a test throws before its inline restore.
     Date.now = realDateNow;
+    if (originalPrivacyMode === undefined) delete process.env['MANIFEST_PRIVACY_MODE'];
+    else process.env['MANIFEST_PRIVACY_MODE'] = originalPrivacyMode;
   });
 
   // ── Happy path ────────────────────────────────────────────────
@@ -40,6 +44,13 @@ describe('GithubController', () => {
     expect(fetchMock).toHaveBeenCalledWith('https://api.github.com/repos/mnfst/manifest', {
       headers: { Accept: 'application/vnd.github.v3+json' },
     });
+  });
+
+  it('does not contact GitHub in privacy mode', async () => {
+    process.env['MANIFEST_PRIVACY_MODE'] = 'true';
+
+    await expect(controller.getStars()).resolves.toEqual({ stars: null });
+    expect(fetchMock).not.toHaveBeenCalled();
   });
 
   it('should return cached stars within TTL without fetching', async () => {

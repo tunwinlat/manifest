@@ -1,5 +1,6 @@
 import { readFileSync } from 'fs';
 import { resolve } from 'path';
+import { isPrivacyMode } from '../common/utils/privacy-mode';
 
 export const DEFAULT_TELEMETRY_ENDPOINT = 'https://telemetry.manifest.build/v1/report';
 export const TELEMETRY_SCHEMA_VERSION = 1;
@@ -22,7 +23,7 @@ export interface TelemetryConfig {
 export function buildTelemetryConfig(env: NodeJS.ProcessEnv = process.env): TelemetryConfig {
   const disabled = env['MANIFEST_TELEMETRY_DISABLED'];
   const isProd = (env['NODE_ENV'] ?? 'development') === 'production';
-  const isDisabled = disabled === '1' || disabled === 'true';
+  const isDisabled = disabled === '1' || disabled === 'true' || isPrivacyMode(env);
   const manifestVersion = readManifestVersion();
   const versionReadable = manifestVersion !== UNKNOWN_VERSION;
   return {

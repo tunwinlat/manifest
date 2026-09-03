@@ -1,4 +1,11 @@
-import { Show, createSignal, createUniqueId, onCleanup, type Component } from 'solid-js';
+import {
+  Show,
+  createResource,
+  createSignal,
+  createUniqueId,
+  onCleanup,
+  type Component,
+} from 'solid-js';
 import { Portal } from 'solid-js/web';
 import {
   PIVOT_CANVAS_BG,
@@ -7,7 +14,7 @@ import {
   initBlobCanvas,
 } from '../services/blob-canvas.js';
 import { authClient } from '../services/auth-client.js';
-import { checkIsSelfHosted } from '../services/setup-status.js';
+import { checkIsSelfHosted, checkPrivacyMode } from '../services/setup-status.js';
 import { useFocusTrap } from '../services/use-focus-trap.js';
 import { hasPivotJoined, markPivotJoined, submitPivotClaim } from '../services/waitlist.js';
 
@@ -24,6 +31,7 @@ const PivotAnnouncement: Component = () => {
   const session = authClient.useSession();
   const userId = () => session()?.data?.user?.id ?? '';
   const sessionEmail = () => session()?.data?.user?.email ?? '';
+  const [privacyMode] = createResource(checkPrivacyMode);
 
   const [dismissed, setDismissed] = createSignal(
     sessionStorage.getItem(PIVOT_CARD_DISMISSED_KEY) === '1',
@@ -74,7 +82,7 @@ const PivotAnnouncement: Component = () => {
 
   return (
     <>
-      <Show when={!dismissed()}>
+      <Show when={privacyMode() === false && !dismissed()}>
         <div class="sidebar-pivot">
           {/* The inline background doubles as the fallback when the canvas
               cannot start; canvas colors are art data, not theme tokens. */}

@@ -419,6 +419,7 @@ sets this automatically).
 | `SENTRY_DSN`                       | No          | unset                                        | Opt-in error monitoring. Sentry is not initialised unless set                                                                                                                                              |
 | `MANIFEST_TELEMETRY_DISABLED`      | No          | `0`                                          | Set `1` to disable anonymous usage telemetry                                                                                                                                                               |
 | `TELEMETRY_ENDPOINT`               | No          | `https://telemetry.manifest.build/v1/report` | Send the usage report to your own collector instead                                                                                                                                                        |
+| `MANIFEST_PRIVACY_MODE`             | No          | `false`                                      | Strict private mode: disables Manifest-operated telemetry/discovery, public catalog refreshes, GitHub stars, hosted Wingman, and cloud waitlist flows                                                                               |
 | `AUTOFIX_GLOBAL_ENABLED`           | No          | `true`                                       | Deployment-wide Autofix kill switch. Set `false` to make no calls to the Autofix service at all, boot health check included                                                                                |
 | `AUTOFIX_HEALING_MODE`             | No          | `local` (self-hosted), `hosted` (cloud)      | `local` uses deterministic in-process repairs and sends no Autofix request data off-host. `hosted` uses Phoenix at `autofix.manifest.build`.                                                               |
 
@@ -442,6 +443,18 @@ platform, OS, and arch.
 To disable, set `MANIFEST_TELEMETRY_DISABLED=1` in your `.env` file and
 restart the container. The full field list is published at
 [manifest.build/docs/self-hosted#telemetry](https://manifest.build/docs/self-hosted#telemetry).
+
+## Strict privacy mode
+
+Set `MANIFEST_PRIVACY_MODE=true` to keep a self-hosted installation disconnected
+from Manifest-operated reporting and public metadata services. It disables
+telemetry, the optional discovery form, public model/pricing/free-model catalog
+refreshes, the GitHub-star widget, hosted Wingman access, and cloud waitlist
+flows. The bundled model-parameter catalog remains available offline.
+
+This does not block requests to AI providers that you configure; those calls
+are the proxy's core function and must be controlled through your provider and
+network configuration.
 
 ## Autofix privacy and instance identity
 

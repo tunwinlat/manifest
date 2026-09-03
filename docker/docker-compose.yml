@@ -151,6 +151,9 @@ services:
       # https://manifest.build/docs/self-hosted#telemetry for the payload shape.
       - MANIFEST_TELEMETRY_DISABLED=${MANIFEST_TELEMETRY_DISABLED:-0}
       - TELEMETRY_ENDPOINT=${TELEMETRY_ENDPOINT:-}
+      # Strict privacy mode: keep Manifest-operated reporting and public
+      # catalog refreshes off this deployment.
+      - MANIFEST_PRIVACY_MODE=${MANIFEST_PRIVACY_MODE:-false}
     depends_on:
       postgres:
         condition: service_healthy

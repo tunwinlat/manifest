@@ -1,4 +1,5 @@
-import { Show, createSignal, type Component } from 'solid-js';
+import { Show, createResource, createSignal, type Component } from 'solid-js';
+import { checkPrivacyMode } from '../services/setup-status.js';
 
 export const USER_DISCOVERY_BANNER_DISMISSED_KEY = 'manifest:user-discovery-banner-dismissed:v1';
 
@@ -22,6 +23,7 @@ function writeDismissed(): void {
 
 const UserDiscoveryBanner: Component = () => {
   const [dismissed, setDismissed] = createSignal(readDismissed());
+  const [privacyMode] = createResource(checkPrivacyMode);
 
   const dismiss = () => {
     setDismissed(true);
@@ -29,7 +31,7 @@ const UserDiscoveryBanner: Component = () => {
   };
 
   return (
-    <Show when={!dismissed()}>
+    <Show when={privacyMode() === false && !dismissed()}>
       <aside class="overview-discovery-banner" aria-label="Manifest user research">
         <div class="overview-discovery-banner__inner">
           <span class="overview-discovery-banner__text">

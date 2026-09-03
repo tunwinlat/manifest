@@ -26,6 +26,7 @@ import {
   type ProviderParamSpec,
   type ProviderParamSpecCatalog,
 } from 'manifest-shared';
+import { isPrivacyMode } from '../../common/utils/privacy-mode';
 
 const MODELPARAMS_PACKAGE_JSON = 'modelparams/package.json';
 const MODELPARAMS_DATA_RELATIVE_PATH = 'dist/generated/data.js';
@@ -105,7 +106,9 @@ export class ProviderParamSpecService implements OnModuleInit {
    * Returns true when a new catalog was applied.
    */
   refreshCatalog(): Promise<boolean> {
-    if (process.env.MODELPARAMS_API_DISABLED === 'true') return Promise.resolve(false);
+    if (process.env.MODELPARAMS_API_DISABLED === 'true' || isPrivacyMode()) {
+      return Promise.resolve(false);
+    }
     // Concurrent callers share one in-flight refresh instead of racing the swap.
     if (this.refreshInFlight) return this.refreshInFlight;
     this.refreshInFlight = this.fetchAndSwapCatalog()

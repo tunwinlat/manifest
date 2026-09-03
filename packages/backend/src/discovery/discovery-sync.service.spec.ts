@@ -10,12 +10,14 @@ const mockIsSelfHosted = isSelfHosted as jest.MockedFunction<typeof isSelfHosted
 describe('DiscoverySyncService', () => {
   const originalNodeEnv = process.env['NODE_ENV'];
   const originalDiscoveryEndpoint = process.env['DISCOVERY_ENDPOINT'];
+  const originalPrivacyMode = process.env['MANIFEST_PRIVACY_MODE'];
   let service: DiscoverySyncService;
   let fetchSpy: jest.SpyInstance;
 
   beforeEach(() => {
     process.env['NODE_ENV'] = 'production';
     delete process.env['DISCOVERY_ENDPOINT'];
+    delete process.env['MANIFEST_PRIVACY_MODE'];
     mockIsSelfHosted.mockReturnValue(true);
     fetchSpy = jest.spyOn(globalThis, 'fetch').mockResolvedValue({ ok: true } as Response);
     service = new DiscoverySyncService();
@@ -31,6 +33,8 @@ describe('DiscoverySyncService', () => {
     else process.env['NODE_ENV'] = originalNodeEnv;
     if (originalDiscoveryEndpoint === undefined) delete process.env['DISCOVERY_ENDPOINT'];
     else process.env['DISCOVERY_ENDPOINT'] = originalDiscoveryEndpoint;
+    if (originalPrivacyMode === undefined) delete process.env['MANIFEST_PRIVACY_MODE'];
+    else process.env['MANIFEST_PRIVACY_MODE'] = originalPrivacyMode;
   });
 
   it('posts the submission to the neutral Blue ingest endpoint', async () => {
@@ -75,6 +79,14 @@ describe('DiscoverySyncService', () => {
 
     process.env['NODE_ENV'] = 'development';
     mockIsSelfHosted.mockReturnValue(true);
+    await service.submit({ email: 'jane@example.com' });
+
+    expect(fetchSpy).not.toHaveBeenCalled();
+  });
+
+  it('does not send in privacy mode', async () => {
+    process.env['MANIFEST_PRIVACY_MODE'] = 'true';
+
     await service.submit({ email: 'jane@example.com' });
 
     expect(fetchSpy).not.toHaveBeenCalled();
