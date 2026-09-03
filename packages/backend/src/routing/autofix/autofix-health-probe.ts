@@ -1,14 +1,14 @@
 import { Injectable, Logger, type OnApplicationBootstrap } from '@nestjs/common';
 import { ConfigService } from '@nestjs/config';
+import { isSelfHosted } from '../../common/utils/detect-self-hosted';
 import { resolveHealingUrl } from './autofix-healing-config';
 
 const PROBE_TIMEOUT_MS = 5_000;
 
 /**
- * On boot, ping hosted Phoenix's public `GET /api/health` once. Only
- * production probes — dev/test run the in-process mock and have nothing to
- * reach. The probe never registers or sends credentials, and never delays or
- * fails app boot.
+ * On boot, ping hosted Phoenix's public `GET /api/health` once when the
+ * selected healing mode uses it. Local mode has no external dependency. The
+ * probe never registers or sends credentials, and never delays or fails boot.
  */
 @Injectable()
 export class AutofixHealthProbe implements OnApplicationBootstrap {
@@ -28,8 +28,12 @@ export class AutofixHealthProbe implements OnApplicationBootstrap {
     // that guarantee and the probe was allowed to run regardless.
     if (this.config.get<string>('AUTOFIX_GLOBAL_ENABLED') === 'false') return;
 
-    const url = resolveHealingUrl(this.config.get<string>('NODE_ENV'));
-    if (!url) return; // Dev/test runs the in-process mock — nothing to probe.
+    const url = resolveHealingUrl(
+      this.config.get<string>('NODE_ENV'),
+      isSelfHosted(),
+      this.config.get<string>('AUTOFIX_HEALING_MODE'),
+    );
+    if (!url) return;
 
     const target = `${url.replace(/\/+$/, '')}/api/health`;
     try {

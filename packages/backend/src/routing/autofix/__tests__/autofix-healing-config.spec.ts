@@ -1,23 +1,33 @@
-import { AUTOFIX_URL, resolveHealingUrl } from '../autofix-healing-config';
+import { AUTOFIX_URL, resolveHealingMode, resolveHealingUrl } from '../autofix-healing-config';
+
+describe('resolveHealingMode', () => {
+  it('defaults self-hosted production to the local in-process healer', () => {
+    expect(resolveHealingMode('production', true, undefined)).toBe('local');
+  });
+
+  it('keeps hosted Phoenix as the cloud production default', () => {
+    expect(resolveHealingMode('production', false, undefined)).toBe('hosted');
+  });
+
+  it('keeps dev and test local regardless of a hosted override', () => {
+    expect(resolveHealingMode('development', true, 'hosted')).toBe('local');
+    expect(resolveHealingMode('test', false, 'hosted')).toBe('local');
+  });
+
+  it('honours an explicit production healing mode', () => {
+    expect(resolveHealingMode('production', true, 'hosted')).toBe('hosted');
+    expect(resolveHealingMode('production', false, ' LOCAL ')).toBe('local');
+  });
+});
 
 describe('resolveHealingUrl', () => {
-  it('sends production at hosted Phoenix regardless of deployment mode', () => {
-    // Cloud and self-hosted heal against the same service; only the auth
-    // header differs, and that is decided in the module, not here.
-    expect(resolveHealingUrl('production')).toBe(AUTOFIX_URL);
+  it('only returns the hosted endpoint in hosted mode', () => {
+    expect(resolveHealingUrl('production', false, undefined)).toBe(AUTOFIX_URL);
+    expect(resolveHealingUrl('production', true, undefined)).toBeUndefined();
+    expect(resolveHealingUrl('development', false, 'hosted')).toBeUndefined();
   });
 
-  it('resolves no URL outside production so dev/test reach the in-process mock', () => {
-    // A developer running the stack locally must never post real failures at
-    // the production healer, and a test must never depend on the network.
-    expect(resolveHealingUrl('development')).toBeUndefined();
-    expect(resolveHealingUrl('test')).toBeUndefined();
-    expect(resolveHealingUrl(undefined)).toBeUndefined();
-  });
-
-  it('pins the only production healer origin', () => {
-    // The URL is a constant with no override, so this literal is the whole
-    // contract. Demo and Railway-generated hostnames are not valid here.
+  it('pins the hosted healer origin', () => {
     expect(AUTOFIX_URL).toBe('https://autofix.manifest.build');
     expect(new URL(AUTOFIX_URL).hostname).toBe('autofix.manifest.build');
     expect(new URL(AUTOFIX_URL).pathname).toBe('/');

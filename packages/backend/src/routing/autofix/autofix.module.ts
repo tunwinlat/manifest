@@ -1,4 +1,4 @@
-import { Module } from '@nestjs/common';
+import { Logger, Module } from '@nestjs/common';
 import { ConfigService } from '@nestjs/config';
 import { TypeOrmModule } from '@nestjs/typeorm';
 import { Agent } from '../../entities/agent.entity';
@@ -9,7 +9,7 @@ import { readManifestVersion } from '../../telemetry/telemetry.config';
 import { TelemetryModule } from '../../telemetry/telemetry.module';
 import { AutofixService } from './autofix.service';
 import { AutofixHealthProbe } from './autofix-health-probe';
-import { resolveHealingUrl } from './autofix-healing-config';
+import { AUTOFIX_URL, resolveHealingMode } from './autofix-healing-config';
 import { HEALING_CLIENT, type HealingClient } from './healing-client';
 import { HttpHealingClient } from './http-healing-client';
 import { InstallIdService } from '../../telemetry/install-id.service';
@@ -17,13 +17,14 @@ import { MockHealingClient } from './mock-healing-client';
 import { ObservationReporter } from './observation-reporter';
 
 const DEFAULT_TIMEOUT_MS = 10_000;
+const logger = new Logger('AutofixModule');
 
 /**
  * Wires Autofix. The active healing client is chosen at boot from the
- * environment alone — the healer URL is a constant, not configuration:
- * - production (cloud or self-hosted) talks to hosted Phoenix over HTTP;
- * - dev/test uses the deterministic in-process mock, so local runs and CI
- *   never reach the production healer.
+ * environment alone:
+ * - Manifest Cloud uses hosted Phoenix in production;
+ * - self-hosted production and dev/test use the deterministic in-process
+ *   healer unless an operator explicitly opts into hosted Phoenix.
  *
  * Auth is what differs between the two production modes: cloud sends its
  * static `AUTOFIX_HEALING_API_KEY`, self-hosted announces its anonymous
@@ -40,14 +41,19 @@ const DEFAULT_TIMEOUT_MS = 10_000;
       useFactory: (config: ConfigService, installIds: InstallIdService): HealingClient => {
         const nodeEnv = config.get<string>('NODE_ENV');
         const selfHosted = isSelfHosted();
-        const url = resolveHealingUrl(nodeEnv);
+        const mode = resolveHealingMode(
+          nodeEnv,
+          selfHosted,
+          config.get<string>('AUTOFIX_HEALING_MODE'),
+        );
+        logger.log(`healingMode=${mode}`);
         // Digits-only: `Number.parseInt` stops at the first non-digit, so a typo'd
         // `AUTOFIX_TIMEOUT_MS` like `'5abc'` would silently override the timeout with
         // `5`. Require a clean positive integer or fall back to the default.
         const rawTimeout = config.get<string>('AUTOFIX_TIMEOUT_MS')?.trim() ?? '';
         const parsed = /^\d+$/.test(rawTimeout) ? Number.parseInt(rawTimeout, 10) : NaN;
         const timeoutMs = parsed > 0 ? parsed : DEFAULT_TIMEOUT_MS;
-        if (url) {
+        if (mode === 'hosted') {
           // Cloud sends its static key; self-hosted omits it and identifies by
           // install id instead.
           const apiKey = config.get<string>('AUTOFIX_HEALING_API_KEY')?.trim() || undefined;
@@ -74,7 +80,13 @@ const DEFAULT_TIMEOUT_MS = 10_000;
                   };
                 })()
               : undefined;
-          return new HttpHealingClient(url, timeoutMs, apiKey, instanceId, readManifestVersion());
+          return new HttpHealingClient(
+            AUTOFIX_URL,
+            timeoutMs,
+            apiKey,
+            instanceId,
+            readManifestVersion(),
+          );
         }
         return new MockHealingClient();
       },

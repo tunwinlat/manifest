@@ -76,10 +76,20 @@ describe('AutofixModule HEALING_CLIENT factory', () => {
     expect(client).toBeInstanceOf(MockHealingClient);
   });
 
-  it('dials hosted Phoenix in self-hosted production', async () => {
+  it('uses the in-process healer in self-hosted production', async () => {
     const client = await resolveHealingClient({
       NODE_ENV: 'production',
       MANIFEST_MODE: 'selfhosted',
+    });
+
+    expect(client).toBeInstanceOf(MockHealingClient);
+  });
+
+  it('allows a self-hosted operator to explicitly opt into hosted Phoenix', async () => {
+    const client = await resolveHealingClient({
+      NODE_ENV: 'production',
+      MANIFEST_MODE: 'selfhosted',
+      AUTOFIX_HEALING_MODE: 'hosted',
     });
 
     expect(client).toBeInstanceOf(HttpHealingClient);
@@ -171,7 +181,7 @@ describe('AutofixModule HEALING_CLIENT factory', () => {
           ConfigModule.forRoot({
             isGlobal: true,
             ignoreEnvFile: true,
-            load: [() => ({ NODE_ENV: 'production' })],
+            load: [() => ({ NODE_ENV: 'production', AUTOFIX_HEALING_MODE: 'hosted' })],
           }),
           AutofixModule,
         ],
