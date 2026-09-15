@@ -26,6 +26,7 @@ import {
   type ProviderParamSpec,
   type ProviderParamSpecCatalog,
 } from 'manifest-shared';
+import { isPrivacyMode } from '../../common/utils/privacy-mode';
 
 const MODELPARAMS_PACKAGE_JSON = 'modelparams/package.json';
 const MODELPARAMS_DATA_RELATIVE_PATH = 'dist/generated/data.js';
@@ -54,6 +55,68 @@ const MODEL_PARAM_GROUPS: readonly ModelParamGroup[] = [
   'provider_metadata',
 ];
 const API_LEVEL_PARAM_PATHS = new Set(['stream']);
+/**
+ * Specs for newly released models that have official provider documentation
+ * but have not reached the bundled modelparams catalog yet. Keep this narrow:
+ * an upstream catalog entry wins as soon as it is available.
+ */
+const MANIFEST_PARAM_OVERRIDES: readonly ProviderModelParamSpec[] = [
+  {
+    provider: 'openai',
+    authType: 'api_key',
+    model: 'gpt-6-astra',
+    params: [
+      {
+        path: 'max_completion_tokens',
+        label: 'Max tokens',
+        description: 'Maximum number of output tokens the model may generate.',
+        group: 'generation_length',
+        type: 'integer',
+        default: 4096,
+        range: { min: 1, max: 128000 },
+      },
+      {
+        path: 'reasoning_effort',
+        label: 'Reasoning effort',
+        description: 'Controls how much reasoning the model performs before answering.',
+        group: 'reasoning',
+        type: 'enum',
+        values: ['low', 'medium', 'high', 'xhigh', 'max'],
+      },
+    ],
+  },
+  {
+    provider: 'openai',
+    authType: 'subscription',
+    model: 'gpt-6-astra',
+    params: [
+      {
+        path: 'reasoning.effort',
+        label: 'Reasoning effort',
+        description: 'Controls how much reasoning the model performs before answering.',
+        group: 'reasoning',
+        type: 'enum',
+        values: ['low', 'medium', 'high', 'xhigh', 'max'],
+      },
+      {
+        path: 'reasoning.summary',
+        label: 'Reasoning summary',
+        description: 'Controls the level of reasoning summary returned with the response.',
+        group: 'reasoning',
+        type: 'enum',
+        values: ['auto', 'concise', 'detailed'],
+      },
+      {
+        path: 'text.verbosity',
+        label: 'Verbosity',
+        description: "Controls how concise or detailed the model's final text response should be.",
+        group: 'output_format',
+        type: 'enum',
+        values: ['low', 'medium', 'high'],
+      },
+    ],
+  },
+];
 /** Kimi Code wire ids mapped to their equivalent modelparams catalog entries. */
 const MOONSHOT_PARAM_MODEL_ALIASES: Readonly<Record<string, string>> = {
   k3: 'kimi-k3',
@@ -105,7 +168,9 @@ export class ProviderParamSpecService implements OnModuleInit {
    * Returns true when a new catalog was applied.
    */
   refreshCatalog(): Promise<boolean> {
-    if (process.env.MODELPARAMS_API_DISABLED === 'true') return Promise.resolve(false);
+    if (process.env.MODELPARAMS_API_DISABLED === 'true' || isPrivacyMode()) {
+      return Promise.resolve(false);
+    }
     // Concurrent callers share one in-flight refresh instead of racing the swap.
     if (this.refreshInFlight) return this.refreshInFlight;
     this.refreshInFlight = this.fetchAndSwapCatalog()
@@ -166,7 +231,7 @@ export class ProviderParamSpecService implements OnModuleInit {
       return false;
     }
 
-    this.specs = freezeCatalog(catalog);
+    this.specs = freezeCatalog(withManifestParamOverrides(catalog));
     this.catalogEtag = response.headers.get('etag');
     this.logger.log(`modelparams catalog refreshed: ${catalog.length} entries`);
     return true;
@@ -252,7 +317,22 @@ export class ProviderParamSpecService implements OnModuleInit {
 function loadModelparamsCatalog(): ProviderParamSpecCatalog {
   const catalog = parseModelParametersCatalog({ models: loadModelparamsCatalogData() });
   if (!catalog) throw new Error('modelparams package returned an invalid MPS catalog');
-  return freezeCatalog(catalog);
+  return freezeCatalog(withManifestParamOverrides(catalog));
+}
+
+function withManifestParamOverrides(catalog: ProviderParamSpecCatalog): ProviderParamSpecCatalog {
+  const merged = [...catalog];
+  for (const override of MANIFEST_PARAM_OVERRIDES) {
+    const alreadyPresent = merged.some(
+      (entry) =>
+        normalizeProviderParamProviderId(entry.provider) ===
+          normalizeProviderParamProviderId(override.provider) &&
+        entry.authType === override.authType &&
+        entry.model === override.model,
+    );
+    if (!alreadyPresent) merged.push(override);
+  }
+  return merged;
 }
 
 function loadModelparamsCatalogData(): unknown {

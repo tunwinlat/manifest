@@ -55,12 +55,20 @@ describe('AutofixHealthProbe', () => {
     expect(fetchSpy).not.toHaveBeenCalled();
   });
 
-  it('probes hosted Phoenix in self-hosted production', async () => {
+  it('does not probe in self-hosted production when local mode is selected by default', async () => {
+    process.env.MANIFEST_MODE = 'selfhosted';
+
+    await makeProbe({ NODE_ENV: 'production' }).probe();
+
+    expect(fetchSpy).not.toHaveBeenCalled();
+  });
+
+  it('probes hosted Phoenix when a self-hosted operator explicitly selects it', async () => {
     process.env.MANIFEST_MODE = 'selfhosted';
     fetchSpy.mockResolvedValue(fakeResponse(true, 200));
     jest.spyOn(Logger.prototype, 'log').mockImplementation(() => undefined);
 
-    await makeProbe({ NODE_ENV: 'production' }).probe();
+    await makeProbe({ NODE_ENV: 'production', AUTOFIX_HEALING_MODE: 'hosted' }).probe();
 
     expect(fetchSpy.mock.calls[0][0]).toBe(HEALTH_URL);
     expect(fetchSpy.mock.calls[0][1].headers).toBeUndefined();

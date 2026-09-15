@@ -350,7 +350,10 @@ export function getClaudeCodeSettingsSnippet(baseUrl: string, apiKey: string): s
   "model": "auto",
   "env": {
     "ANTHROPIC_BASE_URL": "${url}",
-    "ANTHROPIC_AUTH_TOKEN": "${apiKey}"
+    "ANTHROPIC_AUTH_TOKEN": "${apiKey}",
+    "ANTHROPIC_DEFAULT_SONNET_MODEL": "auto",
+    "ANTHROPIC_DEFAULT_HAIKU_MODEL": "auto",
+    "ANTHROPIC_DEFAULT_OPUS_MODEL": "auto"
   }
 }`;
 }

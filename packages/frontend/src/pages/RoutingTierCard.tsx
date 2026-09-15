@@ -13,6 +13,7 @@ import {
 import { customProviderColor, formatPerRequestCost } from '../services/formatters.js';
 import FallbackList from '../components/FallbackList.js';
 import ModelParamsAffordance from '../components/ModelParamsAffordance.jsx';
+import QuotaSkipToggle from '../components/QuotaSkipToggle.js';
 import RouteKeyChip from '../components/RouteKeyChip.js';
 import { setFallbacks as setFallbacksApi } from '../services/api.js';
 import { toast } from '../services/toast-store.js';
@@ -83,6 +84,7 @@ export interface RoutingTierCardProps {
     providerId: string,
     authType?: AuthType,
     providerKeyLabel?: string,
+    skipWhenQuotaExhausted?: boolean,
   ) => void;
   onPinKey?: (
     tierId: string,
@@ -91,6 +93,11 @@ export interface RoutingTierCardProps {
     authType?: AuthType,
   ) => void;
   onReset: (tierId: string) => void;
+  /**
+   * Persist the per-route quota-skip flag on the tier's override route.
+   * When absent, the toggle is not rendered on the primary chip.
+   */
+  onQuotaSkipToggle?: (tierId: string, enabled: boolean) => void;
   onFallbackUpdate: (
     tierId: string,
     fallbacks: string[],
@@ -246,13 +253,25 @@ const RoutingTierCard: Component<RoutingTierCardProps> = (props) => {
     }
     const provId = newPrimaryRoute?.provider ?? providerIdForModel(newPrimary, props.models());
     try {
-      await props.onOverride(
-        props.stage.id,
-        newPrimary,
-        provId ?? '',
-        newPrimaryRoute?.authType,
-        newPrimaryRoute?.keyLabel ?? undefined,
-      );
+      const skipWhenQuotaExhausted = newPrimaryRoute?.skipWhenQuotaExhausted;
+      if (skipWhenQuotaExhausted === undefined) {
+        await props.onOverride(
+          props.stage.id,
+          newPrimary,
+          provId ?? '',
+          newPrimaryRoute?.authType,
+          newPrimaryRoute?.keyLabel ?? undefined,
+        );
+      } else {
+        await props.onOverride(
+          props.stage.id,
+          newPrimary,
+          provId ?? '',
+          newPrimaryRoute?.authType,
+          newPrimaryRoute?.keyLabel ?? undefined,
+          skipWhenQuotaExhausted,
+        );
+      }
     } finally {
       setSwappingFbIndex(null);
     }
@@ -297,13 +316,25 @@ const RoutingTierCard: Component<RoutingTierCardProps> = (props) => {
     }
     const provId = fbRoute?.provider ?? providerIdForModel(fbModel, props.models());
     try {
-      await props.onOverride(
-        props.stage.id,
-        fbModel,
-        provId ?? '',
-        fbRoute?.authType,
-        fbRoute?.keyLabel ?? undefined,
-      );
+      const skipWhenQuotaExhausted = fbRoute?.skipWhenQuotaExhausted;
+      if (skipWhenQuotaExhausted === undefined) {
+        await props.onOverride(
+          props.stage.id,
+          fbModel,
+          provId ?? '',
+          fbRoute?.authType,
+          fbRoute?.keyLabel ?? undefined,
+        );
+      } else {
+        await props.onOverride(
+          props.stage.id,
+          fbModel,
+          provId ?? '',
+          fbRoute?.authType,
+          fbRoute?.keyLabel ?? undefined,
+          skipWhenQuotaExhausted,
+        );
+      }
     } finally {
       setSwappingFbIndex(null);
     }
@@ -539,6 +570,16 @@ const RoutingTierCard: Component<RoutingTierCardProps> = (props) => {
                             }}
                             disabled={() => props.changingTier() === props.stage.id}
                           />
+                          <Show when={props.onQuotaSkipToggle}>
+                            <QuotaSkipToggle
+                              route={props.tier()?.override_route}
+                              modelLabel={labelFor(modelName())}
+                              disabled={props.changingTier() === props.stage.id}
+                              onToggle={(enabled) =>
+                                props.onQuotaSkipToggle?.(props.stage.id, enabled)
+                              }
+                            />
+                          </Show>
                           <Show
                             when={props.setModelParams && props.getModelParams && effectiveAuth()}
                           >

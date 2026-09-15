@@ -27,6 +27,7 @@ import {
 } from './cors-csp-config';
 import { createRateLimitReachedHandler } from './common/middleware/rate-limit-log';
 import { shouldCompress } from './routing/proxy/compression-filter';
+import { isPrivacyMode } from './common/utils/privacy-mode';
 
 export async function bootstrap() {
   const logger = new Logger('Bootstrap');
@@ -41,6 +42,7 @@ export async function bootstrap() {
   const betterAuthUrl = process.env['BETTER_AUTH_URL'] || '';
   const hstsEnabled = /^https:\/\//i.test(betterAuthUrl);
   const isDev = process.env['NODE_ENV'] !== 'production';
+  const privacyMode = isPrivacyMode();
 
   // The Wingman drawer is a dev-only affordance — `frame-src` only loosens
   // up when NODE_ENV !== 'production' to allow the hosted Wingman SPA
@@ -62,7 +64,7 @@ export async function bootstrap() {
           imgSrc: ["'self'", 'data:'],
           // The pivot waiting-list claim is posted cross-origin to the cloud
           // from self-hosted dashboards; the CSP must allow that connection.
-          connectSrc: ["'self'", PIVOT_CLAIM_CLOUD_ORIGIN],
+          connectSrc: privacyMode ? ["'self'"] : ["'self'", PIVOT_CLAIM_CLOUD_ORIGIN],
           fontSrc: ["'self'"],
           objectSrc: ["'none'"],
           frameSrc,
@@ -96,8 +98,12 @@ export async function bootstrap() {
     ? buildDevAllowedOrigins({
         configuredOrigin: process.env['CORS_ORIGIN'] || 'http://localhost:3000',
         wingmanPort,
+        allowHostedWingman: !privacyMode,
       })
-    : buildProdAllowedOrigins({ extraOrigins: process.env['WINGMAN_CORS_ORIGINS'] });
+    : buildProdAllowedOrigins({
+        extraOrigins: process.env['WINGMAN_CORS_ORIGINS'],
+        allowHostedWingman: !privacyMode,
+      });
   // Legacy Private Network Access support, for browsers older than Chrome 138.
   // Newer Chrome replaced PNA with Local Network Access, a user permission that
   // no response header can satisfy — so this does *not* fix a blocked
@@ -115,14 +121,16 @@ export async function bootstrap() {
   // browser, so this one route answers CORS for any origin. Registered before
   // the allow-list cors middleware so its preflight wins; see
   // `applyPivotClaimCors` for why this is safe.
-  app.use((req: express.Request, res: express.Response, next: express.NextFunction) => {
-    const handled = applyPivotClaimCors(req, (name, value) => res.setHeader(name, value));
-    if (handled) {
-      res.sendStatus(204);
-      return;
-    }
-    next();
-  });
+  if (!privacyMode) {
+    app.use((req: express.Request, res: express.Response, next: express.NextFunction) => {
+      const handled = applyPivotClaimCors(req, (name, value) => res.setHeader(name, value));
+      if (handled) {
+        res.sendStatus(204);
+        return;
+      }
+      next();
+    });
+  }
   app.enableCors(buildCorsOptions(corsAllowedOrigins));
 
   app.useGlobalPipes(

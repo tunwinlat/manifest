@@ -1,5 +1,6 @@
 import { Injectable, Logger, OnModuleInit } from '@nestjs/common';
 import { Cron, CronExpression } from '@nestjs/schedule';
+import { isPrivacyMode } from '../common/utils/privacy-mode';
 
 export interface GitHubModel {
   id: string | null;
@@ -80,6 +81,10 @@ export class FreeModelsSyncService implements OnModuleInit {
 
   @Cron(CronExpression.EVERY_DAY_AT_MIDNIGHT)
   async refreshCache(): Promise<number> {
+    if (isPrivacyMode()) {
+      this.logger.log('Privacy mode enabled; skipping GitHub free-models refresh.');
+      return 0;
+    }
     this.logger.log('Refreshing free models cache from GitHub...');
     const data = await this.fetchData();
     if (!data) return 0;

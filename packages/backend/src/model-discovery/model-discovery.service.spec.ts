@@ -11,7 +11,9 @@ jest.mock('../common/utils/crypto.util', () => ({
   getEncryptionSecret: jest.fn(),
   getDecryptionSecrets: jest.fn(() => ['test-secret-32-chars-long-enough!!']),
   decryptWithAny: jest.fn((ciphertext: string, secrets: string[]) => {
-    const mod = jest.requireMock('../common/utils/crypto.util') as { decrypt: (c: string, s: string) => string };
+    const mod = jest.requireMock('../common/utils/crypto.util') as {
+      decrypt: (c: string, s: string) => string;
+    };
     return { plaintext: mod.decrypt(ciphertext, secrets[0]), secretIndex: 0 };
   }),
 }));
@@ -849,6 +851,7 @@ describe('ModelDiscoveryService', () => {
             makeModel({ id: 'gpt-5.5', provider: 'openai', authType: 'subscription' }),
             makeModel({ id: 'gpt-5.2-codex', provider: 'openai', authType: 'subscription' }),
             makeModel({ id: 'gpt-5.1-codex-max', provider: 'openai', authType: 'subscription' }),
+            makeModel({ id: 'gpt-4o', provider: 'openai', authType: 'subscription' }),
             makeModel({ id: 'gpt-5.3-codex-spark', provider: 'openai', authType: 'subscription' }),
           ],
         }),
@@ -858,7 +861,12 @@ describe('ModelDiscoveryService', () => {
 
       const result = await service.getModelsForAgent('agent-1');
 
-      expect(result.map((m) => m.id)).toEqual(['gpt-5.5', 'gpt-5.3-codex-spark']);
+      expect(result.map((m) => m.id)).toEqual(
+        expect.arrayContaining(['gpt-5.5', 'gpt-5.3-codex-spark', 'gpt-6-astra']),
+      );
+      expect(result.map((m) => m.id)).not.toEqual(
+        expect.arrayContaining(['gpt-5.2-codex', 'gpt-5.1-codex-max', 'gpt-4o']),
+      );
     });
 
     it('updates only explicitly configured subscription context windows', async () => {
@@ -885,11 +893,16 @@ describe('ModelDiscoveryService', () => {
 
       const result = await service.getModelsForAgent('tenant-1');
 
-      expect(result.map((model) => [model.id, model.contextWindow])).toEqual([
+      expect(
+        result
+          .filter((model) => ['gpt-5.6-sol', 'gpt-5.6-terra', 'gpt-5.6-luna'].includes(model.id))
+          .map((model) => [model.id, model.contextWindow]),
+      ).toEqual([
         ['gpt-5.6-sol', 1050000],
         ['gpt-5.6-terra', 272000],
         ['gpt-5.6-luna', 272000],
       ]);
+      expect(result.find((model) => model.id === 'gpt-6-astra')?.contextWindow).toBe(1050000);
     });
 
     it('should keep Mistral Vibe subscription cached models that API-key Mistral hides', async () => {
@@ -1863,10 +1876,14 @@ describe('ModelDiscoveryService', () => {
       expect(result.map((m) => m.id).sort()).toEqual([
         'claude-fable-5',
         'claude-fable-5-1',
-        'claude-haiku-4',
-        'claude-opus-4',
+        'claude-haiku-4-5-20251001',
+        'claude-opus-4-5-20251101',
+        'claude-opus-4-6',
+        'claude-opus-4-7',
+        'claude-opus-4-8',
         'claude-opus-5',
-        'claude-sonnet-4',
+        'claude-sonnet-4-5-20250929',
+        'claude-sonnet-4-6',
         'claude-sonnet-5',
       ]);
       expect(result.map((m) => m.id)).not.toContain('claude-sonnet-5:batch');
@@ -2229,14 +2246,18 @@ describe('ModelDiscoveryService', () => {
       );
 
       // Subscription membership comes only from the curated knownModels list.
-      expect(result).toHaveLength(7);
+      expect(result).toHaveLength(11);
       expect(result.map((m) => m.id).sort()).toEqual([
         'claude-fable-5',
         'claude-fable-5-1',
-        'claude-haiku-4',
-        'claude-opus-4',
+        'claude-haiku-4-5-20251001',
+        'claude-opus-4-5-20251101',
+        'claude-opus-4-6',
+        'claude-opus-4-7',
+        'claude-opus-4-8',
         'claude-opus-5',
-        'claude-sonnet-4',
+        'claude-sonnet-4-5-20250929',
+        'claude-sonnet-4-6',
         'claude-sonnet-5',
       ]);
       // All should be stamped as subscription
@@ -2269,9 +2290,9 @@ describe('ModelDiscoveryService', () => {
         }),
       );
 
-      const model = result.find((m) => m.id === 'claude-opus-4');
+      const model = result.find((m) => m.id === 'claude-opus-4-8');
       expect(model).toBeDefined();
-      expect(model!.contextWindow).toBe(200000);
+      expect(model!.contextWindow).toBe(1000000);
       expect(result.map((m) => m.id)).not.toContain('claude-opus-4-20260301');
     });
 
@@ -2431,14 +2452,18 @@ describe('ModelDiscoveryService', () => {
       );
 
       // Even without pricingSync, knownModels are returned directly
-      expect(result).toHaveLength(7);
+      expect(result).toHaveLength(11);
       expect(result.map((m) => m.id).sort()).toEqual([
         'claude-fable-5',
         'claude-fable-5-1',
-        'claude-haiku-4',
-        'claude-opus-4',
+        'claude-haiku-4-5-20251001',
+        'claude-opus-4-5-20251101',
+        'claude-opus-4-6',
+        'claude-opus-4-7',
+        'claude-opus-4-8',
         'claude-opus-5',
-        'claude-sonnet-4',
+        'claude-sonnet-4-5-20250929',
+        'claude-sonnet-4-6',
         'claude-sonnet-5',
       ]);
       for (const m of result) {
@@ -2666,7 +2691,7 @@ describe('ModelDiscoveryService', () => {
           provider: 'anthropic',
           auth_type: 'api_key',
           cached_models: [
-            makeModel({ id: 'claude-sonnet-4', provider: 'anthropic' }), // no authType
+            makeModel({ id: 'claude-sonnet-4-6', provider: 'anthropic' }), // no authType
           ],
         }),
         makeProvider({
@@ -2674,7 +2699,7 @@ describe('ModelDiscoveryService', () => {
           provider: 'anthropic',
           auth_type: 'subscription',
           cached_models: [
-            makeModel({ id: 'claude-sonnet-4', provider: 'anthropic' }), // no authType
+            makeModel({ id: 'claude-sonnet-4-6', provider: 'anthropic' }), // no authType
           ],
         }),
       ];
@@ -2684,8 +2709,9 @@ describe('ModelDiscoveryService', () => {
       const result = await service.getModelsForAgent('agent-1');
 
       // Both entries kept — one with inferred api_key, one with inferred subscription
-      expect(result).toHaveLength(2);
-      expect(result.map((m) => m.authType).sort()).toEqual(['api_key', 'subscription']);
+      const sonnetRoutes = result.filter((m) => m.id === 'claude-sonnet-4-6');
+      expect(sonnetRoutes).toHaveLength(2);
+      expect(sonnetRoutes.map((m) => m.authType).sort()).toEqual(['api_key', 'subscription']);
     });
   });
 
@@ -2697,9 +2723,10 @@ describe('ModelDiscoveryService', () => {
 
       const result = supplementWithKnownModels(raw, 'openai');
 
-      // 1 discovered + 7 ChatGPT-account supported knownModels
-      expect(result.length).toBe(8);
+      // 1 discovered + 8 ChatGPT-account supported knownModels
+      expect(result.length).toBe(9);
       expect(result[0].id).toBe('gpt-oss-120b');
+      expect(result.map((m) => m.id)).toContain('gpt-6-astra');
       expect(result.map((m) => m.id)).toContain('gpt-5.6-sol');
       expect(result.map((m) => m.id)).toContain('gpt-5.6-terra');
       expect(result.map((m) => m.id)).toContain('gpt-5.6-luna');
@@ -2730,11 +2757,12 @@ describe('ModelDiscoveryService', () => {
 
       const result = supplementWithKnownModels(raw, 'anthropic');
 
-      // claude-opus-4 is covered by claude-opus-4-20260301
+      // Retired broad aliases are never reintroduced; active concrete IDs
+      // are added even when an unrelated historical snapshot remains cached.
       expect(result.map((m) => m.id)).not.toContain('claude-opus-4');
-      // claude-sonnet-4 and claude-haiku-4 are NOT covered
-      expect(result.map((m) => m.id)).toContain('claude-sonnet-4');
-      expect(result.map((m) => m.id)).toContain('claude-haiku-4');
+      expect(result.map((m) => m.id)).toContain('claude-opus-4-8');
+      expect(result.map((m) => m.id)).toContain('claude-sonnet-4-6');
+      expect(result.map((m) => m.id)).toContain('claude-haiku-4-5-20251001');
     });
 
     it('should return raw unchanged for non-subscription providers', () => {

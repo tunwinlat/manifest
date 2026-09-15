@@ -47,8 +47,10 @@ vi.mock("../../src/services/agent-display-name.js", () => ({
 }));
 
 const mockCheckIsSelfHosted = vi.fn().mockResolvedValue(false);
+const mockCheckPrivacyMode = vi.fn().mockResolvedValue(false);
 vi.mock("../../src/services/setup-status.js", () => ({
   checkIsSelfHosted: () => mockCheckIsSelfHosted(),
+  checkPrivacyMode: () => mockCheckPrivacyMode(),
 }));
 
 vi.mock("../../src/services/api/billing.js", () => ({
@@ -77,6 +79,8 @@ beforeEach(() => {
   mockLocationReplace.mockReset();
   mockCheckIsSelfHosted.mockReset();
   mockCheckIsSelfHosted.mockResolvedValue(false);
+  mockCheckPrivacyMode.mockReset();
+  mockCheckPrivacyMode.mockResolvedValue(false);
   // The breadcrumb store is a real module-level signal; reset it so a value
   // set in one test never leaks into another.
   setConnectionBreadcrumb(null);

@@ -419,7 +419,9 @@ sets this automatically).
 | `SENTRY_DSN`                       | No          | unset                                        | Opt-in error monitoring. Sentry is not initialised unless set                                                                                                                                              |
 | `MANIFEST_TELEMETRY_DISABLED`      | No          | `0`                                          | Set `1` to disable anonymous usage telemetry                                                                                                                                                               |
 | `TELEMETRY_ENDPOINT`               | No          | `https://telemetry.manifest.build/v1/report` | Send the usage report to your own collector instead                                                                                                                                                        |
+| `MANIFEST_PRIVACY_MODE`             | No          | `false`                                      | Strict private mode: disables Manifest-operated telemetry/discovery, public catalog refreshes, GitHub stars, hosted Wingman, and cloud waitlist flows                                                                               |
 | `AUTOFIX_GLOBAL_ENABLED`           | No          | `true`                                       | Deployment-wide Autofix kill switch. Set `false` to make no calls to the Autofix service at all, boot health check included                                                                                |
+| `AUTOFIX_HEALING_MODE`             | No          | `local` (self-hosted), `hosted` (cloud)      | `local` uses deterministic in-process repairs and sends no Autofix request data off-host. `hosted` uses Phoenix at `autofix.manifest.build`.                                                               |
 
 `NODE_ENV` and `SEED_DATA` are deliberately fixed by the compose file and are
 not knobs here: the image is a production artifact, and the demo-data seeder
@@ -442,6 +444,18 @@ To disable, set `MANIFEST_TELEMETRY_DISABLED=1` in your `.env` file and
 restart the container. The full field list is published at
 [manifest.build/docs/self-hosted#telemetry](https://manifest.build/docs/self-hosted#telemetry).
 
+## Strict privacy mode
+
+Set `MANIFEST_PRIVACY_MODE=true` to keep a self-hosted installation disconnected
+from Manifest-operated reporting and public metadata services. It disables
+telemetry, the optional discovery form, public model/pricing/free-model catalog
+refreshes, the GitHub-star widget, hosted Wingman access, and cloud waitlist
+flows. The bundled model-parameter catalog remains available offline.
+
+This does not block requests to AI providers that you configure; those calls
+are the proxy's core function and must be controlled through your provider and
+network configuration.
+
 ## Autofix privacy and instance identity
 
 Autofix is off by default for every agent in self-hosted Manifest. When you turn
@@ -457,13 +471,15 @@ be linked to the same install by Manifest. Neither carries a user, tenant, or
 email. If you want them unlinked, there is no setting for that today — the
 identifier is shared by design.
 
-Autofix works by sending a failed request to the healing service so it can
-produce a corrected body. The failing request body, provider error, provider,
-and API mode are therefore sent after known secrets are scrubbed. Secret
-scrubbing does not remove arbitrary personal information from prompts. Successful
-traffic is not sent. If `AUTOFIX_REPORT_ALL_4XX=true`, scrubbed bodies for other
-request-side 4xx failures are also sent as diagnostic observations (up to
-256 KiB), under the same per-agent opt-in.
+In `hosted` mode, Autofix sends a failed request to the healing service so it
+can produce a corrected body. The failing request body, provider error,
+provider, and API mode are therefore sent after known secrets are scrubbed.
+Secret scrubbing does not remove arbitrary personal information from prompts.
+Successful traffic is not sent. In `local` mode, the same deterministic repair
+rules run in this process and no Autofix request data leaves the server. If
+`AUTOFIX_REPORT_ALL_4XX=true`, scrubbed bodies for other request-side 4xx
+failures are also sent as diagnostic observations only in hosted mode, under the
+same per-agent opt-in.
 
 If no agent has Autofix enabled, no healing call is made and **no ID is ever
 created** — it is generated on first use, so an install that never enables
@@ -472,9 +488,11 @@ unauthenticated boot-time health check may contact the service, and it never
 creates an identity. Set `AUTOFIX_GLOBAL_ENABLED=false` to disable every Autofix
 service call, boot health check included.
 
-The Autofix endpoint itself is not configurable — it is a constant in the image
-(`https://autofix.manifest.build`). There is no supported way to point an
-install at a different healing service.
+Self-hosted deployments use the deterministic in-process healer by default, so
+Autofix request data stays on the server. Set `AUTOFIX_HEALING_MODE=hosted` only
+when you explicitly want to use Phoenix at `https://autofix.manifest.build`.
+Pointing an install at an arbitrary third-party healer is intentionally not
+supported.
 
 `MANIFEST_TELEMETRY_DISABLED=1` stops the aggregate usage report and nothing
 else; it does not disable Autofix, and it does not stop Autofix from creating and

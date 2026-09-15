@@ -2,6 +2,7 @@ import { Body, Controller, Get, HttpCode, HttpStatus, Post } from '@nestjs/commo
 import { Public } from '../common/decorators/public.decorator';
 import { CreateAdminDto } from './dto/create-admin.dto';
 import { SetupService } from './setup.service';
+import { isPrivacyMode } from '../common/utils/privacy-mode';
 
 @Controller('api/v1/setup')
 export class SetupController {
@@ -16,6 +17,7 @@ export class SetupController {
     ollamaAvailable: boolean;
     localLlmHost: string;
     emailConfigured: boolean;
+    privacyMode: boolean;
   }> {
     const selfHosted = this.setupService.isSelfHosted();
     const ollamaAvailable = selfHosted ? await this.setupService.isOllamaAvailable() : false;
@@ -26,6 +28,7 @@ export class SetupController {
       ollamaAvailable,
       localLlmHost: this.setupService.getLocalLlmHost(),
       emailConfigured: this.setupService.isEmailConfigured(),
+      privacyMode: isPrivacyMode(),
     };
   }
 

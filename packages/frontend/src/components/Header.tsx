@@ -12,7 +12,7 @@ import { useAgentName } from '../services/routing.js';
 import { authClient } from '../services/auth-client.js';
 import { agentDisplayName } from '../services/agent-display-name.js';
 import { agentPlatformIcon } from '../services/agent-platform-store.js';
-import { checkIsSelfHosted } from '../services/setup-status.js';
+import { checkIsSelfHosted, checkPrivacyMode } from '../services/setup-status.js';
 import NotificationBell from './NotificationBell.jsx';
 import { getBillingStatus } from '../services/api/billing.js';
 import {
@@ -62,7 +62,8 @@ const Header: Component<HeaderProps> = (props) => {
 
   onMount(() => {
     checkIsSelfHosted().then(setIsSelfHosted);
-    if (!starDismissed()) {
+    void checkPrivacyMode().then((privacyMode) => {
+      if (privacyMode || starDismissed()) return;
       const cachedCount = sessionStorage.getItem(STAR_CACHE_KEY);
       const cachedTs = sessionStorage.getItem(STAR_CACHE_TS_KEY);
       if (cachedCount && cachedTs && Date.now() - Number(cachedTs) < STAR_CACHE_TTL) {
@@ -79,7 +80,7 @@ const Header: Component<HeaderProps> = (props) => {
           }
         })
         .catch(() => {});
-    }
+    });
   });
 
   const dismissStar = (e: MouseEvent) => {

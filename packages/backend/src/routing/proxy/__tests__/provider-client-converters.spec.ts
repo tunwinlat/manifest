@@ -23,6 +23,29 @@ describe('provider-client-converters', () => {
       expect(result).toHaveProperty('stream_options');
     });
 
+    it('normalizes GPT-6 Astra requests to its supported Chat Completions parameters', () => {
+      const result = sanitizeOpenAiBody(
+        {
+          messages: [{ role: 'user', content: 'Hello' }],
+          max_tokens: 4096,
+          reasoning_effort: 'max',
+          temperature: 0.7,
+          top_p: 0.9,
+          top_logprobs: 3,
+          logprobs: true,
+        },
+        'openai',
+        'gpt-6-astra',
+      );
+
+      expect(result).toMatchObject({ max_completion_tokens: 4096, reasoning_effort: 'max' });
+      expect(result).not.toHaveProperty('max_tokens');
+      expect(result).not.toHaveProperty('temperature');
+      expect(result).not.toHaveProperty('top_p');
+      expect(result).not.toHaveProperty('top_logprobs');
+      expect(result).not.toHaveProperty('logprobs');
+    });
+
     it('should strip OpenAI-only fields for non-passthrough providers', () => {
       const body = {
         messages: [{ role: 'user', content: 'Hi' }],

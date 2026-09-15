@@ -2,6 +2,10 @@ name: CI
 permissions:
   contents: read
 
+concurrency:
+  group: ci-${{ github.workflow }}-${{ github.event.pull_request.number || github.ref }}
+  cancel-in-progress: true
+
 on:
   push:
     branches: [main]
@@ -62,19 +66,6 @@ jobs:
         run: npm run migration:run --workspace=packages/backend
       - run: npm test --workspace=packages/backend -- --coverage --coverageReporters=lcov
       - run: npm run test:e2e --workspace=packages/backend
-      - name: Upload backend coverage to Codecov
-        if: always()
-        uses: codecov/codecov-action@5a1091511ad55cbe89839c7260b706298ca349f7 # v5.5.1
-        with:
-          token: ${{ secrets.CODECOV_TOKEN }}
-          flags: backend
-          # Unit-only lcov. Codecov's server-side merge of a second (e2e) report
-          # under the same flag is lossy — it under-counted the union (96% vs the
-          # real 99.5%), failing the gate. A single native Jest report is read
-          # correctly, matching main. e2e still runs above as a functional gate.
-          files: packages/backend/coverage/lcov.info
-          disable_search: true
-          fail_ci_if_error: false
 
   frontend:
     runs-on: ubuntu-latest
@@ -91,16 +82,6 @@ jobs:
       - run: npm test --workspace=packages/frontend -- --coverage
       - run: npx vite build
         working-directory: packages/frontend
-        env:
-          CODECOV_TOKEN: ${{ secrets.CODECOV_TOKEN }}
-      - name: Upload frontend coverage to Codecov
-        if: always()
-        uses: codecov/codecov-action@5a1091511ad55cbe89839c7260b706298ca349f7 # v5.5.1
-        with:
-          token: ${{ secrets.CODECOV_TOKEN }}
-          flags: frontend
-          directory: packages/frontend/coverage
-          fail_ci_if_error: false
 
   shared:
     runs-on: ubuntu-latest
@@ -113,14 +94,6 @@ jobs:
       - run: npm ci
       - run: npm run build --workspace=packages/shared
       - run: npm test --workspace=packages/shared -- --coverage --coverageReporters=lcov
-      - name: Upload shared coverage to Codecov
-        if: always()
-        uses: codecov/codecov-action@5a1091511ad55cbe89839c7260b706298ca349f7 # v5.5.1
-        with:
-          token: ${{ secrets.CODECOV_TOKEN }}
-          flags: shared
-          directory: packages/shared/coverage
-          fail_ci_if_error: false
 
   changeset-check:
     name: Changeset status

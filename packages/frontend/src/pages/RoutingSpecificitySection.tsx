@@ -149,13 +149,21 @@ export interface RoutingSpecificitySectionProps {
   resettingAll: () => boolean;
   addingFallback: () => string | null;
   onDropdownOpen: (category: string) => void;
-  onOverride: (category: string, model: string, provider: string, authType?: AuthType) => void;
+  onOverride: (
+    category: string,
+    model: string,
+    provider: string,
+    authType?: AuthType,
+    providerKeyLabel?: string,
+    skipWhenQuotaExhausted?: boolean,
+  ) => void;
   onPinKey?: (
     category: string,
     providerId: string,
     providerKeyLabel: string | null,
     authType?: AuthType,
   ) => void;
+  onQuotaSkipToggle?: (category: string, enabled: boolean) => void;
   onReset: (category: string) => void;
   onFallbackUpdate: (category: string, fallbacks: string[], routes?: ModelRoute[] | null) => void;
   onAddFallback: (category: string) => void;
@@ -283,6 +291,7 @@ const RoutingSpecificitySection: Component<RoutingSpecificitySectionProps> = (pr
                 onDropdownOpen={props.onDropdownOpen}
                 onOverride={props.onOverride}
                 onPinKey={props.onPinKey}
+                onQuotaSkipToggle={props.onQuotaSkipToggle}
                 onReset={props.onReset}
                 onFallbackUpdate={props.onFallbackUpdate}
                 onAddFallback={props.onAddFallback}

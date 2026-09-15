@@ -442,8 +442,22 @@ describe('RoutingTierCard', () => {
   it('inserts the primary at slot 2 on drop, persisting both arrays', async () => {
     const onFallbackUpdate = vi.fn();
     const onOverride = vi.fn();
+    const tier: TierAssignment = {
+      ...baseTier,
+      fallback_routes: [
+        { ...baseTier.fallback_routes![0], skipWhenQuotaExhausted: false },
+        baseTier.fallback_routes![1],
+      ],
+    };
     const { getByTestId } = render(() => (
-      <RoutingTierCard {...makeProps({ onFallbackUpdate, onOverride })} />
+      <RoutingTierCard
+        {...makeProps({
+          tier: () => tier,
+          getFallbacksFor: () => tier.fallback_routes!.map((route) => route.model),
+          onFallbackUpdate,
+          onOverride,
+        })}
+      />
     ));
     // Slot 2 = end of list. The primary "gpt-4o" gets inserted at index 2,
     // then shifted out of position 0 → newFallbacks = ["claude", "gpt-4o"]
@@ -474,6 +488,7 @@ describe('RoutingTierCard', () => {
         'openai',
         'api_key',
         undefined,
+        false,
       );
     });
   });
@@ -501,7 +516,12 @@ describe('RoutingTierCard', () => {
       ...baseTier,
       fallback_routes: [
         { provider: 'anthropic', authType: 'subscription', model: 'claude' },
-        { provider: 'openai', authType: 'api_key', model: 'gpt-4o-mini' },
+        {
+          provider: 'openai',
+          authType: 'api_key',
+          model: 'gpt-4o-mini',
+          skipWhenQuotaExhausted: false,
+        },
       ],
     };
     const { container, getByTestId } = render(() => (
@@ -531,6 +551,7 @@ describe('RoutingTierCard', () => {
         'openai',
         'api_key',
         undefined,
+        false,
       );
     });
   });
@@ -1474,6 +1495,75 @@ describe('providerIdForModel route-provider attribution', () => {
         'deepseek-v4',
         { thinking: { type: 'disabled' } },
       );
+    });
+  });
+
+  describe('quota skip toggle', () => {
+    const anthropicSubTier: TierAssignment = {
+      ...baseTier,
+      override_route: { provider: 'anthropic', authType: 'subscription', model: 'claude' },
+    };
+
+    const quotaButton = (container: HTMLElement) =>
+      container.querySelector<HTMLButtonElement>(
+        'button[aria-label^="Toggle skip-on-quota-exhaustion"]',
+      );
+
+    it('renders on the primary chip for an anthropic subscription override and forwards toggles', () => {
+      const onQuotaSkipToggle = vi.fn();
+      const { container } = render(() => (
+        <RoutingTierCard {...makeProps({ tier: () => anthropicSubTier, onQuotaSkipToggle })} />
+      ));
+      const button = quotaButton(container);
+      expect(button).not.toBeNull();
+      expect(button!.getAttribute('aria-pressed')).toBe('false');
+      expect(button!.classList.contains('routing-card__chip-action--configured')).toBe(false);
+      fireEvent.click(button!);
+      expect(onQuotaSkipToggle).toHaveBeenCalledWith('simple', true);
+    });
+
+    it('reflects the stored flag on the override route via aria-pressed', () => {
+      const { container } = render(() => (
+        <RoutingTierCard
+          {...makeProps({
+            tier: () => ({
+              ...anthropicSubTier,
+              override_route: { ...anthropicSubTier.override_route!, skipWhenQuotaExhausted: true },
+            }),
+            onQuotaSkipToggle: vi.fn(),
+          })}
+        />
+      ));
+      const button = quotaButton(container);
+      expect(button?.getAttribute('aria-pressed')).toBe('true');
+      expect(button?.classList.contains('routing-card__chip-action--configured')).toBe(true);
+    });
+
+    it('is hidden for api_key overrides', () => {
+      const { container } = render(() => (
+        <RoutingTierCard {...makeProps({ onQuotaSkipToggle: vi.fn() })} />
+      ));
+      expect(quotaButton(container)).toBeNull();
+    });
+
+    it('is hidden for subscription overrides on providers without a quota endpoint', () => {
+      const geminiSubTier: TierAssignment = {
+        ...baseTier,
+        override_route: { provider: 'gemini', authType: 'subscription', model: 'gpt-4o' },
+      };
+      const { container } = render(() => (
+        <RoutingTierCard
+          {...makeProps({ tier: () => geminiSubTier, onQuotaSkipToggle: vi.fn() })}
+        />
+      ));
+      expect(quotaButton(container)).toBeNull();
+    });
+
+    it('is hidden when no toggle handler is provided', () => {
+      const { container } = render(() => (
+        <RoutingTierCard {...makeProps({ tier: () => anthropicSubTier })} />
+      ));
+      expect(quotaButton(container)).toBeNull();
     });
   });
 });

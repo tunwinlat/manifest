@@ -29,6 +29,33 @@ describe('ProviderParamSpecService', () => {
     expect(localSpecs.map((spec) => spec.path)).toEqual([]);
   });
 
+  it('supplies local GPT-6 Astra specs while modelparams catches up', async () => {
+    const service = new ProviderParamSpecService();
+
+    const apiSpecs = await service.getSpecs('openai', 'api_key', 'gpt-6-astra');
+    const subscriptionSpecs = await service.getSpecs('openai', 'subscription', 'gpt-6-astra');
+
+    expect(apiSpecs.map((spec) => spec.path)).toEqual([
+      'max_completion_tokens',
+      'reasoning_effort',
+    ]);
+    expect(apiSpecs.find((spec) => spec.path === 'max_completion_tokens')).toMatchObject({
+      range: { min: 1, max: 128000 },
+    });
+    expect(apiSpecs.find((spec) => spec.path === 'reasoning_effort')?.values).toEqual([
+      'low',
+      'medium',
+      'high',
+      'xhigh',
+      'max',
+    ]);
+    expect(subscriptionSpecs.map((spec) => spec.path)).toEqual([
+      'reasoning.effort',
+      'reasoning.summary',
+      'text.verbosity',
+    ]);
+  });
+
   it('lists model identities without param details and canonicalizes provider aliases', async () => {
     const service = new ProviderParamSpecService();
 
@@ -235,6 +262,7 @@ describe('ProviderParamSpecService API refresh', () => {
     fetchSpy.mockRestore();
     delete process.env.MODELPARAMS_API_DISABLED;
     delete process.env.MODELPARAMS_API_URL;
+    delete process.env.MANIFEST_PRIVACY_MODE;
   });
 
   it('swaps in a fetched catalog and remembers its ETag', async () => {
@@ -266,6 +294,14 @@ describe('ProviderParamSpecService API refresh', () => {
 
   it('does nothing when MODELPARAMS_API_DISABLED is set', async () => {
     process.env.MODELPARAMS_API_DISABLED = 'true';
+    const service = new ProviderParamSpecService();
+
+    await expect(service.refreshCatalog()).resolves.toBe(false);
+    expect(fetchSpy).not.toHaveBeenCalled();
+  });
+
+  it('does nothing in privacy mode', async () => {
+    process.env.MANIFEST_PRIVACY_MODE = 'true';
     const service = new ProviderParamSpecService();
 
     await expect(service.refreshCatalog()).resolves.toBe(false);

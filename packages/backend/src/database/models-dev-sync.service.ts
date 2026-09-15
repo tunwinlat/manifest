@@ -2,6 +2,7 @@ import { Injectable, Logger, OnModuleInit } from '@nestjs/common';
 import { Cron, CronExpression } from '@nestjs/schedule';
 import { normalizeProviderName, type ModelCapability, type ModelModality } from 'manifest-shared';
 import { PROVIDER_BY_ID_OR_ALIAS } from '../common/constants/providers';
+import { isPrivacyMode } from '../common/utils/privacy-mode';
 import {
   capabilitiesFromModelsDev,
   modelModalitiesFromModelsDev,
@@ -285,6 +286,10 @@ export class ModelsDevSyncService implements OnModuleInit {
 
   @Cron(CronExpression.EVERY_DAY_AT_4AM)
   async refreshCache(): Promise<number> {
+    if (isPrivacyMode()) {
+      this.logger.log('Privacy mode enabled; skipping models.dev cache refresh.');
+      return 0;
+    }
     this.logger.log('Refreshing models.dev cache...');
     const raw = await this.fetchModelsDevData();
     if (!raw) return 0;

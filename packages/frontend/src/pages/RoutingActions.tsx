@@ -40,17 +40,29 @@ export function createRoutingActions(input: RoutingActionsInput) {
     providerId: string,
     authType?: AuthType,
     providerKeyLabel?: string,
+    skipWhenQuotaExhausted?: boolean,
   ) => {
     setChangingTier(tierId);
     try {
-      const updated = await overrideTier(
-        input.agentName(),
-        tierId,
-        modelName,
-        providerId,
-        authType,
-        providerKeyLabel,
-      );
+      const updated =
+        skipWhenQuotaExhausted === undefined
+          ? await overrideTier(
+              input.agentName(),
+              tierId,
+              modelName,
+              providerId,
+              authType,
+              providerKeyLabel,
+            )
+          : await overrideTier(
+              input.agentName(),
+              tierId,
+              modelName,
+              providerId,
+              authType,
+              providerKeyLabel,
+              skipWhenQuotaExhausted,
+            );
       // Commit the primary update to local state immediately so the UI reflects
       // the new model even if the fallback cleanup below fails.
       input.mutateTiers((prev) => prev?.map((t) => (t.tier === tierId ? updated : t)));
@@ -124,6 +136,35 @@ export function createRoutingActions(input: RoutingActionsInput) {
       );
       input.mutateTiers((prev) => prev?.map((t) => (t.tier === tierId ? updated : t)));
       toast.success(providerKeyLabel ? `Pinned to "${providerKeyLabel}" key` : 'Key pin cleared');
+    } catch {
+      // error toast from fetchMutate
+    } finally {
+      setChangingTier(null);
+    }
+  };
+
+  /**
+   * Flip the quota-skip flag on a tier's override route. Re-uses the existing
+   * PUT /tiers/:tier endpoint by re-sending the current route — the only
+   * delta is the new skipWhenQuotaExhausted value (mirrors handlePinKey).
+   */
+  const handleQuotaSkipToggle = async (tierId: string, enabled: boolean) => {
+    const tier = getTier(tierId);
+    const route = tier?.override_route;
+    if (!tier || !route) return;
+    setChangingTier(tierId);
+    try {
+      const updated = await overrideTier(
+        input.agentName(),
+        tierId,
+        route.model,
+        route.provider,
+        route.authType,
+        route.keyLabel ?? undefined,
+        enabled,
+      );
+      input.mutateTiers((prev) => prev?.map((t) => (t.tier === tierId ? updated : t)));
+      toast.success(enabled ? 'Route skipped on quota exhaustion' : 'Quota skip disabled');
     } catch {
       // error toast from fetchMutate
     } finally {
@@ -264,6 +305,7 @@ export function createRoutingActions(input: RoutingActionsInput) {
     getFallbacksFor,
     handleOverride,
     handlePinKey,
+    handleQuotaSkipToggle,
     handleResetAll,
     handleReset,
     handleAddFallback,

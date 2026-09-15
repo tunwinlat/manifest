@@ -72,6 +72,9 @@ describe("SetupStepAddProvider", () => {
     fireEvent.click(agentTabs[4]); // Claude Code
     expect(container.textContent).toContain("ANTHROPIC_BASE_URL");
     expect(container.textContent).toContain("ANTHROPIC_AUTH_TOKEN");
+    expect(container.textContent).toContain("ANTHROPIC_DEFAULT_SONNET_MODEL");
+    expect(container.textContent).toContain("ANTHROPIC_DEFAULT_HAIKU_MODEL");
+    expect(container.textContent).toContain("ANTHROPIC_DEFAULT_OPUS_MODEL");
   });
 
   it("shows Craft setup when Craft Agent tab clicked", () => {

@@ -45,7 +45,9 @@ name: mnfst
 
 services:
   manifest:
-    image: manifestdotbuild/manifest:${MANIFEST_VERSION:-latest}
+    # MANIFEST_IMAGE makes the compose file usable with a private or fork-owned
+    # registry without maintaining a divergent compose file.
+    image: ${MANIFEST_IMAGE:-manifestdotbuild/manifest}:${MANIFEST_VERSION:-latest}
     ports:
       - "${HOST_BIND_ADDRESS:-127.0.0.1}:${HOST_PORT:-${PORT:-2099}}:${PORT:-2099}"
     # Lets the container reach LLM servers running on the host (Ollama,
@@ -151,6 +153,9 @@ services:
       # https://manifest.build/docs/self-hosted#telemetry for the payload shape.
       - MANIFEST_TELEMETRY_DISABLED=${MANIFEST_TELEMETRY_DISABLED:-0}
       - TELEMETRY_ENDPOINT=${TELEMETRY_ENDPOINT:-}
+      # Strict privacy mode: keep Manifest-operated reporting and public
+      # catalog refreshes off this deployment.
+      - MANIFEST_PRIVACY_MODE=${MANIFEST_PRIVACY_MODE:-false}
     depends_on:
       postgres:
         condition: service_healthy

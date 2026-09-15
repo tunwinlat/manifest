@@ -10,6 +10,7 @@ interface SetupStatusResponse {
   ollamaAvailable?: boolean;
   localLlmHost?: string;
   emailConfigured?: boolean;
+  privacyMode?: boolean;
 }
 
 interface SetupStatusResult {
@@ -19,6 +20,7 @@ interface SetupStatusResult {
   ollamaAvailable: boolean;
   localLlmHost: string;
   emailConfigured: boolean;
+  privacyMode: boolean;
 }
 
 let cachedPromise: Promise<SetupStatusResult> | null = null;
@@ -37,6 +39,7 @@ async function fetchSetupStatus(): Promise<SetupStatusResult> {
         ollamaAvailable: false,
         localLlmHost: 'localhost',
         emailConfigured: true,
+        privacyMode: false,
       };
     const data = (await res.json()) as SetupStatusResponse;
     return {
@@ -48,6 +51,7 @@ async function fetchSetupStatus(): Promise<SetupStatusResult> {
       // Assume available unless the backend explicitly says otherwise, so a
       // transient status glitch never hides the email reset form.
       emailConfigured: data.emailConfigured !== false,
+      privacyMode: data.privacyMode === true,
     };
   } catch {
     return {
@@ -57,6 +61,7 @@ async function fetchSetupStatus(): Promise<SetupStatusResult> {
       ollamaAvailable: false,
       localLlmHost: 'localhost',
       emailConfigured: true,
+      privacyMode: false,
     };
   }
 }
@@ -90,6 +95,10 @@ export async function checkLocalLlmHost(): Promise<string> {
 
 export async function checkEmailConfigured(): Promise<boolean> {
   return (await getSetupStatus()).emailConfigured;
+}
+
+export async function checkPrivacyMode(): Promise<boolean> {
+  return (await getSetupStatus()).privacyMode;
 }
 
 /** Invalidate the cached status. Call this after a successful setup. */

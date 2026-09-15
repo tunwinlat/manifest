@@ -1,5 +1,12 @@
 import { describe, it, expect, beforeEach, vi } from 'vitest';
 import { fireEvent, render, screen } from '@solidjs/testing-library';
+
+const mockCheckPrivacyMode = vi.fn(() => false);
+
+vi.mock('../../src/services/setup-status.js', () => ({
+  checkPrivacyMode: (...args: unknown[]) => mockCheckPrivacyMode(...args),
+}));
+
 import UserDiscoveryBanner, {
   USER_DISCOVERY_BANNER_DISMISSED_KEY,
   USER_DISCOVERY_BOOKING_URL,
@@ -8,6 +15,7 @@ import UserDiscoveryBanner, {
 describe('UserDiscoveryBanner', () => {
   beforeEach(() => {
     vi.restoreAllMocks();
+    mockCheckPrivacyMode.mockReturnValue(false);
     window.localStorage.clear();
   });
 

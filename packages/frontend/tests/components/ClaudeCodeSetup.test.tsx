@@ -34,6 +34,9 @@ describe("ClaudeCodeSetup", () => {
     expect(text).toContain('"env"');
     expect(text).toContain("ANTHROPIC_BASE_URL");
     expect(text).toContain("ANTHROPIC_AUTH_TOKEN");
+    expect(text).toContain("ANTHROPIC_DEFAULT_SONNET_MODEL");
+    expect(text).toContain("ANTHROPIC_DEFAULT_HAIKU_MODEL");
+    expect(text).toContain("ANTHROPIC_DEFAULT_OPUS_MODEL");
   });
 
   it("strips trailing /v1 from the base URL inside the rendered JSON", () => {

@@ -6,6 +6,7 @@ import {
   getSubscriptionKnownModels,
   getSubscriptionKnownModelsMatch,
   getSubscriptionCapabilities,
+  supportsQuotaCheck,
 } from '../src/subscription';
 
 describe('SUBSCRIPTION_PROVIDER_CONFIGS', () => {
@@ -327,8 +328,10 @@ describe('getSubscriptionKnownModels', () => {
   it('returns known models for anthropic', () => {
     const models = getSubscriptionKnownModels('anthropic');
     expect(models).toContain('claude-fable-5');
-    expect(models).toContain('claude-opus-4');
-    expect(models).toContain('claude-sonnet-4');
+    expect(models).toContain('claude-opus-4-8');
+    expect(models).toContain('claude-sonnet-4-6');
+    expect(models).not.toContain('claude-opus-4');
+    expect(models).not.toContain('claude-sonnet-4');
     // claude-sonnet-5 (launched 2026-06-30) is served on the Claude plan.
     expect(models).toContain('claude-sonnet-5');
   });
@@ -442,9 +445,10 @@ describe('getSubscriptionKnownModels', () => {
 });
 
 describe('getSubscriptionKnownModelsMatch', () => {
-  it('returns prefix for providers with no knownModelsMatch override (default)', () => {
-    // anthropic has no knownModelsMatch field → defaults to 'prefix'
-    expect(getSubscriptionKnownModelsMatch('anthropic')).toBe('prefix');
+  it('uses exact matching for the curated Anthropic subscription catalog', () => {
+    // Anthropic's list contains only active, routable IDs; broad retired
+    // aliases must not leak back into the picker through prefix matching.
+    expect(getSubscriptionKnownModelsMatch('anthropic')).toBe('exact');
   });
 
   it('returns exact for openai', () => {
@@ -483,7 +487,7 @@ describe('getSubscriptionKnownModelsMatch', () => {
 
   it('is case-insensitive', () => {
     expect(getSubscriptionKnownModelsMatch('GEMINI')).toBe('exact');
-    expect(getSubscriptionKnownModelsMatch('Anthropic')).toBe('prefix');
+    expect(getSubscriptionKnownModelsMatch('Anthropic')).toBe('exact');
   });
 });
 
@@ -636,5 +640,30 @@ describe('getSubscriptionCapabilities', () => {
 
   it('returns null for unsupported providers', () => {
     expect(getSubscriptionCapabilities('unknown')).toBeNull();
+  });
+});
+
+describe('supportsQuotaCheck', () => {
+  it('returns true for providers with a quota endpoint', () => {
+    expect(supportsQuotaCheck('anthropic')).toBe(true);
+    expect(supportsQuotaCheck('moonshot')).toBe(true);
+    expect(supportsQuotaCheck('openai')).toBe(true);
+    expect(supportsQuotaCheck('minimax')).toBe(true);
+    expect(supportsQuotaCheck('xai')).toBe(true);
+  });
+
+  it('is case-insensitive', () => {
+    expect(supportsQuotaCheck('Anthropic')).toBe(true);
+    expect(supportsQuotaCheck('MOONSHOT')).toBe(true);
+  });
+
+  it('returns false for subscription providers without a quota endpoint', () => {
+    expect(supportsQuotaCheck('gemini')).toBe(false);
+    expect(supportsQuotaCheck('zai')).toBe(false);
+  });
+
+  it('returns false for unsupported providers', () => {
+    expect(supportsQuotaCheck('unknown')).toBe(false);
+    expect(supportsQuotaCheck('')).toBe(false);
   });
 });

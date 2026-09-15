@@ -97,6 +97,7 @@ describe('ProxyService — orchestration', () => {
       | 'getProviderKeyId'
       | 'selectProviderKey'
       | 'hasRouteCredentials'
+      | 'resolveNewerRouteVariant'
     >
   >;
   let openaiOauth: jest.Mocked<Pick<OpenaiOauthService, 'unwrapToken'>>;
@@ -165,6 +166,7 @@ describe('ProxyService — orchestration', () => {
         priority: 0,
       }),
       hasRouteCredentials: jest.fn().mockResolvedValue(false),
+      resolveNewerRouteVariant: jest.fn(async (_tenantId, route) => route),
     };
     openaiOauth = { unwrapToken: jest.fn().mockResolvedValue(null) };
     minimaxOauth = { unwrapToken: jest.fn().mockResolvedValue(null) };

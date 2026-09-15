@@ -4,10 +4,10 @@ import type { HealingClient, HealingRequestContext } from './healing-client';
 import type { ConfirmResponse, HealOutcome, HealRequest, HealResponse } from './phoenix.types';
 
 /**
- * Deterministic in-process stand-in for Phoenix, used outside production so a
- * local run never posts real failures at the hosted healer and a test never
- * depends on the network. It implements the MVP #1 case end-to-end — an unknown-parameter 4xx
- * whose `param` has a known rename (e.g. the Responses API rejecting
+ * Deterministic in-process healer used by development, tests, and local
+ * self-hosted Autofix. It never posts request data to another service. It
+ * implements the MVP #1 case end-to-end — an unknown-parameter 4xx whose
+ * `param` has a known rename (e.g. the Responses API rejecting
  * `max_tokens`) is patched into `max_output_tokens` via a `rename_param`
  * operation. Everything else returns `no_patch`. Lets the whole heal → resend →
  * confirm loop be exercised without the external service.
@@ -33,7 +33,7 @@ export class MockHealingClient implements HealingClient {
       const healedBody: Record<string, unknown> = { ...input.request };
       healedBody[rename] = healedBody[param];
       delete healedBody[param];
-      this.logger.debug(`mock heal: rename_param ${param} -> ${rename}`);
+      this.logger.debug(`local heal: rename_param ${param} -> ${rename}`);
       // A freshly served patch is `unverified` in Phoenix (only an already-verified
       // issue answers `patched`); the mock is stateless, so it always serves unverified.
       return Promise.resolve({
@@ -50,7 +50,7 @@ export class MockHealingClient implements HealingClient {
   }
 
   observe(observations: HealRequest[], _context: HealingRequestContext): Promise<void> {
-    this.logger.log(`mock observe: ${observations.length} observation(s) discarded`);
+    this.logger.log(`local observe: ${observations.length} observation(s) discarded`);
     return Promise.resolve();
   }
 

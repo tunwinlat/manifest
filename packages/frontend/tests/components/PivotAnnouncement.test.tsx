@@ -2,6 +2,7 @@ import { describe, it, expect, vi, beforeEach } from 'vitest';
 import { render, screen, fireEvent, waitFor } from '@solidjs/testing-library';
 
 const mockCheckIsSelfHosted = vi.fn();
+const mockCheckPrivacyMode = vi.fn(() => false);
 const mockSubmitPivotClaim = vi.fn();
 const mockStopBlobCanvas = vi.fn();
 const mockInitBlobCanvas = vi.fn(() => mockStopBlobCanvas);
@@ -26,6 +27,7 @@ vi.mock('../../src/services/auth-client.js', () => ({
 
 vi.mock('../../src/services/setup-status.js', () => ({
   checkIsSelfHosted: (...args: unknown[]) => mockCheckIsSelfHosted(...args),
+  checkPrivacyMode: (...args: unknown[]) => mockCheckPrivacyMode(...args),
 }));
 
 vi.mock('../../src/services/waitlist.js', async (importOriginal) => {
@@ -47,6 +49,7 @@ describe('PivotAnnouncement', () => {
     sessionStorage.clear();
     mockSessionEmail = 'test@test.com';
     mockCheckIsSelfHosted.mockResolvedValue(true);
+    mockCheckPrivacyMode.mockReturnValue(false);
     mockSubmitPivotClaim.mockResolvedValue(true);
   });
 

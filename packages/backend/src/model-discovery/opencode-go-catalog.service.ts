@@ -1,4 +1,5 @@
 import { Injectable, Logger, OnModuleInit } from '@nestjs/common';
+import { isPrivacyMode } from '../common/utils/privacy-mode';
 
 export interface OpencodeGoCatalogEntry {
   /** Bare model ID as listed in the docs (e.g. "glm-5.1"). */
@@ -70,6 +71,7 @@ export class OpencodeGoCatalogService implements OnModuleInit {
   }
 
   async list(): Promise<OpencodeGoCatalogEntry[]> {
+    if (isPrivacyMode()) return this.lastGood ?? [];
     const now = Date.now();
     if (this.cache && this.cache.expiresAt > now) {
       return this.cache.entries;
@@ -88,6 +90,7 @@ export class OpencodeGoCatalogService implements OnModuleInit {
    * models without restarting the backend.
    */
   async refresh(): Promise<OpencodeGoCatalogEntry[]> {
+    if (isPrivacyMode()) return this.lastGood ?? [];
     return this.startFetch(Date.now());
   }
 

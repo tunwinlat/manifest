@@ -326,6 +326,7 @@ vi.mock('../../src/pages/RoutingDefaultTierSection.js', () => ({
       props.addingFallback,
       props.onOverride,
       props.onPinKey,
+      props.onQuotaSkipToggle,
       props.onReset,
       props.onFallbackUpdate,
       props.onAddFallback,
@@ -348,6 +349,14 @@ vi.mock('../../src/pages/RoutingDefaultTierSection.js', () => ({
           onClick={() => (props.onToggleComplexity as () => void)()}
         >
           toggle
+        </button>
+        <button
+          data-testid="default-quota-toggle"
+          onClick={() =>
+            (props.onQuotaSkipToggle as (id: string, enabled: boolean) => void)?.('default', true)
+          }
+        >
+          quota-toggle
         </button>
         <button
           data-testid="open-dropdown"
@@ -424,6 +433,15 @@ vi.mock('../../src/pages/RoutingSpecificitySection.js', () => ({
     changingResponseMode?: () => boolean;
     onResponseModeChange?: (mode: 'stream' | 'buffered') => void;
     onPinKey?: (cat: string, provider: string, label: string | null, authType?: string) => void;
+    onQuotaSkipToggle?: (cat: string, enabled: boolean) => void;
+    onOverride?: (
+      cat: string,
+      model: string,
+      provider: string,
+      authType?: string,
+      keyLabel?: string,
+      skipWhenQuotaExhausted?: boolean,
+    ) => void;
     setModelParams?: (
       scope: string,
       provider: string,
@@ -445,6 +463,14 @@ vi.mock('../../src/pages/RoutingSpecificitySection.js', () => ({
       </button>
       <button data-testid="spec-reset" onClick={() => props.onReset('coding')}>
         spec-reset
+      </button>
+      <button
+        data-testid="spec-override-quota-off"
+        onClick={() =>
+          props.onOverride?.('coding', 'claude', 'anthropic', 'subscription', undefined, false)
+        }
+      >
+        spec-override-quota-off
       </button>
       <button
         data-testid="spec-fb-update-add"
@@ -508,6 +534,24 @@ vi.mock('../../src/pages/RoutingSpecificitySection.js', () => ({
         onClick={() => props.onPinKey?.('coding', '', 'Work')}
       >
         spec-pin-key-missing-provider
+      </button>
+      <button
+        data-testid="spec-quota-toggle"
+        onClick={() => props.onQuotaSkipToggle?.('coding', true)}
+      >
+        spec-quota-toggle
+      </button>
+      <button
+        data-testid="spec-quota-toggle-off"
+        onClick={() => props.onQuotaSkipToggle?.('coding', false)}
+      >
+        spec-quota-toggle-off
+      </button>
+      <button
+        data-testid="spec-quota-toggle-missing-cat"
+        onClick={() => props.onQuotaSkipToggle?.('unknown-category', true)}
+      >
+        spec-quota-toggle-missing-cat
       </button>
       <button
         data-testid="spec-persist-params"
@@ -581,6 +625,7 @@ vi.mock('../../src/pages/RoutingTierCard.js', () => ({
       // getters (covers the onPinKey/onReset/onFallbackUpdate prop lines).
       props.onOverride,
       props.onPinKey,
+      props.onQuotaSkipToggle,
       props.onReset,
       props.onFallbackUpdate,
       props.onAddFallback,
@@ -593,6 +638,14 @@ vi.mock('../../src/pages/RoutingTierCard.js', () => ({
           onClick={() => (props.onDropdownOpen as (id: string) => void)('default')}
         >
           open
+        </button>
+        <button
+          data-testid="tier-card-quota-toggle"
+          onClick={() =>
+            (props.onQuotaSkipToggle as (id: string, enabled: boolean) => void)?.('default', true)
+          }
+        >
+          quota-toggle
         </button>
       </div>
     );
@@ -629,9 +682,10 @@ vi.mock('../../src/components/HeaderTierCard.js', () => ({
         <button
           data-testid={`clean-fb-routes-${tier.id}`}
           onClick={() =>
-            (props.onFallbacksUpdate as (f: string[], r: unknown) => void)(['fb1'], [
-              { provider: 'openai', authType: 'api_key', model: 'fb1' },
-            ])
+            (props.onFallbacksUpdate as (f: string[], r: unknown) => void)(
+              ['fb1'],
+              [{ provider: 'openai', authType: 'api_key', model: 'fb1' }],
+            )
           }
         >
           fb-routes
@@ -644,7 +698,10 @@ vi.mock('../../src/components/HeaderTierCard.js', () => ({
         >
           fb-noroutes
         </button>
-        <button data-testid={`clean-edit-${tier.id}`} onClick={() => (props.onEdit as () => void)()}>
+        <button
+          data-testid={`clean-edit-${tier.id}`}
+          onClick={() => (props.onEdit as () => void)()}
+        >
           edit
         </button>
         <button
@@ -652,6 +709,12 @@ vi.mock('../../src/components/HeaderTierCard.js', () => ({
           onClick={() => (props.onDisable as () => void)()}
         >
           disable
+        </button>
+        <button
+          data-testid={`clean-quota-${tier.id}`}
+          onClick={() => (props.onQuotaSkipToggle as (enabled: boolean) => void)?.(true)}
+        >
+          quota-toggle
         </button>
       </div>
     );
@@ -661,12 +724,7 @@ vi.mock('../../src/components/HeaderTierCard.js', () => ({
 vi.mock('../../src/components/ResponseModeModal.js', () => ({
   default: (props: Record<string, unknown>) => {
     // Read every prop so JSX attribute lines 711-723 are covered.
-    const _read = [
-      props.responseMode,
-      props.disabled,
-      props.tiers,
-      props.models,
-    ];
+    const _read = [props.responseMode, props.disabled, props.tiers, props.models];
     void _read;
     return (
       <div data-testid="response-mode-modal">
@@ -725,6 +783,7 @@ vi.mock('../../src/pages/RoutingPanels.js', () => ({
 
 const mockActionGetTier = vi.fn();
 const mockActionHandleOverride = vi.fn();
+const mockActionHandleQuotaSkipToggle = vi.fn();
 const mockActionHandleResetAll = vi.fn();
 const mockActionHandleReset = vi.fn();
 const mockActionHandleAddFallback = vi.fn();
@@ -738,6 +797,7 @@ vi.mock('../../src/pages/RoutingActions.js', () => ({
     getTier: (...args: unknown[]) => mockActionGetTier(...args),
     getFallbacksFor: () => [],
     handleOverride: (...args: unknown[]) => mockActionHandleOverride(...args),
+    handleQuotaSkipToggle: (...args: unknown[]) => mockActionHandleQuotaSkipToggle(...args),
     handleResetAll: (...args: unknown[]) => mockActionHandleResetAll(...args),
     handleReset: (...args: unknown[]) => mockActionHandleReset(...args),
     handleAddFallback: (...args: unknown[]) => mockActionHandleAddFallback(...args),
@@ -818,6 +878,15 @@ describe('Routing page', () => {
     });
   });
 
+  it('threads the quota-skip toggle through the default section to the actions handler', async () => {
+    render(() => <Routing />);
+    await waitFor(() => {
+      expect(screen.getByTestId('default-quota-toggle')).toBeDefined();
+    });
+    fireEvent.click(screen.getByTestId('default-quota-toggle'));
+    expect(mockActionHandleQuotaSkipToggle).toHaveBeenCalledWith('default', true);
+  });
+
   it('passes only enabled providers into the model picker path', async () => {
     mockGetProviders.mockResolvedValue([
       baseProvider,
@@ -837,7 +906,9 @@ describe('Routing page', () => {
       expect(screen.getByTestId('default-section')).toBeDefined();
     });
 
-    const pickerProviders = (lastModalsProps!.connectedProviders as () => (typeof baseProvider)[])();
+    const pickerProviders = (
+      lastModalsProps!.connectedProviders as () => (typeof baseProvider)[]
+    )();
     expect(pickerProviders.map((provider) => provider.id)).toEqual(['p1']);
   });
 
@@ -1131,6 +1202,26 @@ describe('Routing page', () => {
     });
   });
 
+  it('forwards an explicit false quota-skip value from a specificity fallback promotion', async () => {
+    mockOverrideSpecificity.mockResolvedValue(undefined);
+    render(() => <Routing />);
+    await waitFor(() => {
+      expect(screen.getByTestId('spec-override-quota-off')).toBeDefined();
+    });
+    fireEvent.click(screen.getByTestId('spec-override-quota-off'));
+    await waitFor(() => {
+      expect(mockOverrideSpecificity).toHaveBeenCalledWith(
+        'demo',
+        'coding',
+        'claude',
+        'anthropic',
+        'subscription',
+        undefined,
+        false,
+      );
+    });
+  });
+
   it('toasts when specificity override fails', async () => {
     mockOverrideSpecificity.mockRejectedValue(new Error('boom'));
     render(() => <Routing />);
@@ -1332,6 +1423,110 @@ describe('Routing page', () => {
     });
   });
 
+  describe('handleSpecificityQuotaSkipToggle', () => {
+    const codingSubAssignment = {
+      id: 's1',
+      agent_id: 'a',
+      category: 'coding',
+      is_active: true,
+      override_route: {
+        provider: 'anthropic',
+        authType: 'subscription' as const,
+        model: 'claude-opus',
+      },
+      auto_assigned_route: null,
+      fallback_routes: [],
+      updated_at: '2025-01-01',
+    };
+
+    it('re-sends the current override with skipWhenQuotaExhausted=true', async () => {
+      mockGetSpecificityAssignments.mockResolvedValue([codingSubAssignment]);
+      mockOverrideSpecificity.mockResolvedValue(undefined);
+      render(() => <Routing />);
+      await waitFor(() => {
+        expect(screen.getByTestId('spec-quota-toggle')).toBeDefined();
+      });
+      fireEvent.click(screen.getByTestId('spec-quota-toggle'));
+      await waitFor(() => {
+        expect(mockOverrideSpecificity).toHaveBeenCalledWith(
+          'demo',
+          'coding',
+          'claude-opus',
+          'anthropic',
+          'subscription',
+          undefined,
+          true,
+        );
+        expect(mockToastSuccess).toHaveBeenCalledWith('Route skipped on quota exhaustion');
+      });
+    });
+
+    it('re-sends the current override with skipWhenQuotaExhausted=false when disabling', async () => {
+      const flaggedAssignment = {
+        ...codingSubAssignment,
+        override_route: { ...codingSubAssignment.override_route, skipWhenQuotaExhausted: true },
+      };
+      mockGetSpecificityAssignments.mockResolvedValue([flaggedAssignment]);
+      mockOverrideSpecificity.mockResolvedValue(undefined);
+      render(() => <Routing />);
+      await waitFor(() => {
+        expect(screen.getByTestId('spec-quota-toggle-off')).toBeDefined();
+      });
+      fireEvent.click(screen.getByTestId('spec-quota-toggle-off'));
+      await waitFor(() => {
+        expect(mockOverrideSpecificity).toHaveBeenCalledWith(
+          'demo',
+          'coding',
+          'claude-opus',
+          'anthropic',
+          'subscription',
+          undefined,
+          false,
+        );
+        expect(mockToastSuccess).toHaveBeenCalledWith('Quota skip disabled');
+      });
+    });
+
+    it('does nothing when the assignment has no override route', async () => {
+      mockGetSpecificityAssignments.mockResolvedValue([
+        { ...codingSubAssignment, override_route: null },
+      ]);
+      render(() => <Routing />);
+      await waitFor(() => {
+        expect(screen.getByTestId('spec-quota-toggle')).toBeDefined();
+      });
+      fireEvent.click(screen.getByTestId('spec-quota-toggle'));
+      // Wait one tick to make sure no async overrideSpecificity call slips through
+      await new Promise((r) => setTimeout(r, 5));
+      expect(mockOverrideSpecificity).not.toHaveBeenCalled();
+    });
+
+    it('does nothing when the category does not match an existing assignment', async () => {
+      mockGetSpecificityAssignments.mockResolvedValue([codingSubAssignment]);
+      render(() => <Routing />);
+      await waitFor(() => {
+        expect(screen.getByTestId('spec-quota-toggle-missing-cat')).toBeDefined();
+      });
+      fireEvent.click(screen.getByTestId('spec-quota-toggle-missing-cat'));
+      await new Promise((r) => setTimeout(r, 5));
+      expect(mockOverrideSpecificity).not.toHaveBeenCalled();
+    });
+
+    it('swallows errors silently (toast handled upstream by fetchMutate)', async () => {
+      mockGetSpecificityAssignments.mockResolvedValue([codingSubAssignment]);
+      mockOverrideSpecificity.mockRejectedValue(new Error('boom'));
+      render(() => <Routing />);
+      await waitFor(() => {
+        expect(screen.getByTestId('spec-quota-toggle')).toBeDefined();
+      });
+      fireEvent.click(screen.getByTestId('spec-quota-toggle'));
+      await waitFor(() => {
+        expect(mockOverrideSpecificity).toHaveBeenCalled();
+      });
+      expect(mockToastSuccess).not.toHaveBeenCalledWith('Route skipped on quota exhaustion');
+    });
+  });
+
   it('omits the routes payload when the spec fallback caller has no authType', async () => {
     mockGetSpecificityAssignments.mockResolvedValue([
       {
@@ -1409,15 +1604,13 @@ describe('Routing page', () => {
   });
 
   it('keeps the routing page mounted when model refresh completes after a selection', async () => {
-    let resolveProviderRefresh!: (providers: typeof baseProvider[]) => void;
-    mockGetProviders
-      .mockResolvedValueOnce([baseProvider])
-      .mockImplementationOnce(
-        () =>
-          new Promise((resolve) => {
-            resolveProviderRefresh = resolve;
-          }),
-      );
+    let resolveProviderRefresh!: (providers: (typeof baseProvider)[]) => void;
+    mockGetProviders.mockResolvedValueOnce([baseProvider]).mockImplementationOnce(
+      () =>
+        new Promise((resolve) => {
+          resolveProviderRefresh = resolve;
+        }),
+    );
 
     render(() => <Routing />);
     await waitFor(() => {
@@ -1712,9 +1905,9 @@ describe('Routing page', () => {
     // actions.getTier was consulted first with the category id.
     expect(mockActionGetTier).toHaveBeenCalledWith('coding');
     // Outer getTier maps the specificity row's category to tier and returns it.
-    const result = (lastModalsProps?.getTier as (id: string) => Record<string, unknown> | undefined)(
-      'coding',
-    );
+    const result = (
+      lastModalsProps?.getTier as (id: string) => Record<string, unknown> | undefined
+    )('coding');
     expect(result).toBeDefined();
     expect(result?.tier).toBe('coding');
     expect(result?.category).toBe('coding');
@@ -1988,7 +2181,7 @@ describe('Routing page', () => {
       fireEvent.click(screen.getByTestId('setup-done'));
       await waitFor(() => {
         expect(localStorage.getItem('setup_completed_demo')).toBe('1');
-        expect((lastSetupModalProps?.open as boolean)).toBe(false);
+        expect(lastSetupModalProps?.open as boolean).toBe(false);
       });
       expect(mockClearSetupPending).toHaveBeenCalledWith('demo');
       expect(screen.getByTestId('setup-modal').getAttribute('data-open')).toBe('false');
@@ -2159,6 +2352,86 @@ describe('Routing page', () => {
       fireEvent.click(screen.getByTestId('clean-fb-routes-ht-1'));
       await new Promise((r) => setTimeout(r, 10));
       expect(mockListHeaderTiers).not.toHaveBeenCalled();
+    });
+
+    it('re-sends the header tier override with skipWhenQuotaExhausted when the toggle fires', async () => {
+      const subTier = {
+        ...cleanTier,
+        override_route: {
+          provider: 'anthropic',
+          authType: 'subscription' as const,
+          model: 'claude-opus',
+          keyLabel: 'Work',
+        },
+      };
+      mockListHeaderTiers.mockResolvedValue([subTier]);
+      mockOverrideHeaderTier.mockResolvedValue(undefined);
+      render(() => <Routing />);
+      await waitFor(() => {
+        expect(screen.getByTestId('clean-quota-ht-1')).toBeDefined();
+      });
+      mockListHeaderTiers.mockClear();
+      fireEvent.click(screen.getByTestId('clean-quota-ht-1'));
+      await waitFor(() => {
+        expect(mockOverrideHeaderTier).toHaveBeenCalledWith(
+          'demo',
+          'ht-1',
+          'claude-opus',
+          'anthropic',
+          'subscription',
+          'Work',
+          true,
+        );
+      });
+      // Success: refetch + toast.
+      await waitFor(() => {
+        expect(mockListHeaderTiers).toHaveBeenCalled();
+        expect(mockToastSuccess).toHaveBeenCalledWith('Route skipped on quota exhaustion');
+      });
+    });
+
+    it('toasts when the quota-skip toggle update fails', async () => {
+      const subTier = {
+        ...cleanTier,
+        override_route: {
+          provider: 'anthropic',
+          authType: 'subscription' as const,
+          model: 'claude-opus',
+        },
+      };
+      mockListHeaderTiers.mockResolvedValue([subTier]);
+      mockOverrideHeaderTier.mockRejectedValue(new Error('quota boom'));
+      render(() => <Routing />);
+      await waitFor(() => {
+        expect(screen.getByTestId('clean-quota-ht-1')).toBeDefined();
+      });
+      fireEvent.click(screen.getByTestId('clean-quota-ht-1'));
+      await waitFor(() => {
+        expect(mockToastError).toHaveBeenCalledWith('quota boom');
+      });
+      expect(mockToastSuccess).not.toHaveBeenCalledWith('Route skipped on quota exhaustion');
+    });
+
+    it('does nothing when the header tier has no override route', async () => {
+      // cleanTier.override_route is null — the handler returns early.
+      mockListHeaderTiers.mockResolvedValue([cleanTier]);
+      render(() => <Routing />);
+      await waitFor(() => {
+        expect(screen.getByTestId('clean-quota-ht-1')).toBeDefined();
+      });
+      fireEvent.click(screen.getByTestId('clean-quota-ht-1'));
+      await new Promise((r) => setTimeout(r, 5));
+      expect(mockOverrideHeaderTier).not.toHaveBeenCalled();
+    });
+
+    it('threads the quota-skip toggle into the default tier card and forwards to the actions handler', async () => {
+      mockListHeaderTiers.mockResolvedValue([]);
+      render(() => <Routing />);
+      await waitFor(() => {
+        expect(screen.getByTestId('tier-card-quota-toggle')).toBeDefined();
+      });
+      fireEvent.click(screen.getByTestId('tier-card-quota-toggle'));
+      expect(mockActionHandleQuotaSkipToggle).toHaveBeenCalledWith('default', true);
     });
 
     it('triggers the edit opener from a unified-view card', async () => {

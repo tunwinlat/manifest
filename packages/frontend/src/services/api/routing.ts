@@ -246,6 +246,7 @@ export function overrideTier(
   provider: string,
   authType?: AuthType,
   providerKeyLabel?: string,
+  skipWhenQuotaExhausted?: boolean,
 ) {
   // The backend requires the structured (provider, authType, model) tuple now
   // that legacy column persistence is gone. authType is optional only for
@@ -258,6 +259,11 @@ export function overrideTier(
     const route: ModelRoute = providerKeyLabel
       ? { provider, authType, model, keyLabel: providerKeyLabel }
       : { provider, authType, model };
+    // `false` is meaningful: it explicitly clears a saved quota-skip flag.
+    // Omitting it asks the backend to preserve the current route value.
+    if (skipWhenQuotaExhausted !== undefined) {
+      route.skipWhenQuotaExhausted = skipWhenQuotaExhausted;
+    }
     body.route = route;
   }
   if (providerKeyLabel) body.providerKeyLabel = providerKeyLabel;

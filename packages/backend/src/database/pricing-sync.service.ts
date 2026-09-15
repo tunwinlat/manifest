@@ -1,5 +1,6 @@
 import { Injectable, Logger, OnModuleInit } from '@nestjs/common';
 import { Cron, CronExpression } from '@nestjs/schedule';
+import { isPrivacyMode } from '../common/utils/privacy-mode';
 
 interface OpenRouterModel {
   id: string;
@@ -57,6 +58,10 @@ export class PricingSyncService implements OnModuleInit {
 
   @Cron(CronExpression.EVERY_DAY_AT_3AM)
   async refreshCache(): Promise<number> {
+    if (isPrivacyMode()) {
+      this.logger.log('Privacy mode enabled; skipping OpenRouter pricing refresh.');
+      return 0;
+    }
     this.logger.log('Refreshing OpenRouter pricing cache...');
     const data = await this.fetchOpenRouterModels();
     if (!data) return 0;
