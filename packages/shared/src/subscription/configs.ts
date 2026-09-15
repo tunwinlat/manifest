@@ -12,19 +12,22 @@ export const SUBSCRIPTION_PROVIDER_CONFIGS: Readonly<
     subscriptionTokenPrefix: 'sk-ant-oat',
     knownModels: Object.freeze([
       'claude-fable-5',
-      // Anthropic subscription membership comes exclusively from this curated
-      // list (no live discovery), so point releases callers address directly
-      // need their own entry — the claude-fable-5 prefix alone never emits it.
       'claude-fable-5-1',
-      'claude-opus-4',
-      'claude-sonnet-4',
-      'claude-haiku-4',
-      // claude-opus-4-6 / claude-haiku-4-5 are already matched by the
-      // claude-opus-4 / claude-haiku-4 prefixes above. claude-opus-5 is not —
-      // the 5 generation dropped the 4.x prefix, so it needs its own entry.
       'claude-opus-5',
       'claude-sonnet-5',
+      'claude-haiku-4-5-20251001',
+      'claude-opus-4-8',
+      'claude-opus-4-7',
+      'claude-opus-4-6',
+      'claude-opus-4-5-20251101',
+      'claude-sonnet-4-6',
+      'claude-sonnet-4-5-20250929',
     ]),
+    // Only real, active API IDs are published. This avoids exposing retired
+    // Claude 4 aliases such as `claude-opus-4`; newly released model IDs are
+    // added explicitly after the Claude Code subscription endpoint supports
+    // them.
+    knownModelsMatch: 'exact' as const,
     subscriptionCapabilities: Object.freeze({
       maxContextWindow: 200000,
       modelContextWindows: Object.freeze({
@@ -65,6 +68,7 @@ export const SUBSCRIPTION_PROVIDER_CONFIGS: Readonly<
     subscriptionLabel: 'ChatGPT Plus/Pro/Team',
     subscriptionAuthMode: 'popup_oauth' as const,
     knownModels: Object.freeze([
+      'gpt-6-astra',
       'gpt-5.6-sol',
       'gpt-5.6-terra',
       'gpt-5.6-luna',
@@ -77,6 +81,7 @@ export const SUBSCRIPTION_PROVIDER_CONFIGS: Readonly<
     subscriptionCapabilities: Object.freeze({
       maxContextWindow: 200000,
       modelContextWindows: Object.freeze({
+        'gpt-6-astra': 1050000,
         'gpt-5.6-sol': 1050000,
         'gpt-5.6-terra': 1050000,
         'gpt-5.6-luna': 1050000,

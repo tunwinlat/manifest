@@ -1,5 +1,6 @@
 import { inferProviderFromModel, type ModelRoute } from 'manifest-shared';
 import type { DiscoveredModel } from '../../model-discovery/model-fetcher';
+import { resolveNewerModelVariant } from '../../common/utils/model-version-family';
 import { unambiguousRoute } from '../routing-core/route-helpers';
 
 export const OPENAI_MODEL_ID_AUTO = 'auto';
@@ -60,7 +61,39 @@ export function routeForOpenAiModelId(
       model: model.id,
     };
   }
-  return unambiguousRoute(modelId, [...models]);
+  const exact = unambiguousRoute(modelId, [...models]);
+  if (exact) return exact;
+
+  // A client can hold on to a public /v1/models ID after the provider moves
+  // that family to a new minor release. Resolve only within the same provider,
+  // auth path, and product variant; ambiguous bare IDs remain rejected.
+  const candidate = explicitModelRouteCandidate(modelId);
+  if (!candidate || candidate.provider.startsWith('custom:')) return null;
+  const isSubscription = candidate.model.endsWith(SUBSCRIPTION_MODEL_SUFFIX);
+  const requestedNativeModel = isSubscription
+    ? candidate.model.slice(0, -SUBSCRIPTION_MODEL_SUFFIX.length)
+    : candidate.model;
+  const compatible = models.filter(
+    (model): model is DiscoveredModel & { authType: NonNullable<DiscoveredModel['authType']> } => {
+      if (!model.authType) return false;
+      if (candidate.providerQualified && model.provider.toLowerCase() !== candidate.provider) {
+        return false;
+      }
+      if (candidate.providerQualified && (model.authType === 'subscription') !== isSubscription) {
+        return false;
+      }
+      return (
+        resolveNewerModelVariant(candidate.provider, requestedNativeModel, [model.id]) !== null
+      );
+    },
+  );
+  if (compatible.length !== 1) return null;
+
+  return {
+    provider: compatible[0].provider,
+    authType: compatible[0].authType,
+    model: compatible[0].id,
+  };
 }
 
 /**

@@ -3,6 +3,7 @@ import { InjectRepository } from '@nestjs/typeorm';
 import { Repository } from 'typeorm';
 import type { AuthType, ModelRoute } from 'manifest-shared';
 import { TenantProvider } from '../../entities/tenant-provider.entity';
+import { resolveNewerModelVariant } from '../../common/utils/model-version-family';
 import { AgentEnabledProvider } from '../../entities/agent-enabled-provider.entity';
 import { ModelPricingCacheService } from '../../model-prices/model-pricing-cache.service';
 import { ModelDiscoveryService } from '../../model-discovery/model-discovery.service';
@@ -426,6 +427,15 @@ export class ProviderKeyService {
         (!route.authType || !m.authType || m.authType === route.authType),
     );
     if (connectionModels.some((m) => m.id === route.model)) return true;
+    if (
+      resolveNewerModelVariant(
+        route.provider,
+        route.model,
+        connectionModels.map((model) => model.id),
+      )
+    ) {
+      return true;
+    }
     if (connectionModels.length > 0) return false;
 
     // Qwen/Alibaba model IDs must come from native discovery. The provider has
@@ -448,6 +458,35 @@ export class ProviderKeyService {
         providerNames.has(r.provider.toLowerCase()) &&
         (!route.authType || r.auth_type === route.authType),
     );
+  }
+
+  /**
+   * Keep persisted routes stable across provider minor releases. The selected
+   * replacement only exists in memory for this request: operators retain the
+   * model ID they deliberately configured, while a retired ID can transparently
+   * use the newer discovered member of the same family.
+   */
+  async resolveNewerRouteVariant(
+    tenantId: string,
+    route: ModelRoute,
+    agentId?: string,
+  ): Promise<ModelRoute> {
+    if (!route.provider) return route;
+    const providerNames = expandProviderNames([route.provider]);
+    const models = await this.discoveryService.getModelsForAgent(tenantId, agentId);
+    const available = models.filter(
+      (model) =>
+        providerNames.has(model.provider.toLowerCase()) &&
+        (!route.authType || !model.authType || model.authType === route.authType),
+    );
+    if (available.some((model) => model.id === route.model)) return route;
+
+    const replacement = resolveNewerModelVariant(
+      route.provider,
+      route.model,
+      available.map((model) => model.id),
+    );
+    return replacement ? { ...route, model: replacement } : route;
   }
 
   /**

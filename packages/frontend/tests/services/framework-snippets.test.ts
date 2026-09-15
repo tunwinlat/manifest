@@ -287,6 +287,9 @@ describe("getClaudeCodeSettingsSnippet", () => {
       env: {
         ANTHROPIC_BASE_URL: "http://localhost:38240",
         ANTHROPIC_AUTH_TOKEN: "mnfst_key",
+        ANTHROPIC_DEFAULT_SONNET_MODEL: "auto",
+        ANTHROPIC_DEFAULT_HAIKU_MODEL: "auto",
+        ANTHROPIC_DEFAULT_OPUS_MODEL: "auto",
       },
     });
     // No node command, no shell artifacts — pure JSON.

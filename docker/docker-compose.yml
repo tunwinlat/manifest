@@ -45,7 +45,9 @@ name: mnfst
 
 services:
   manifest:
-    image: manifestdotbuild/manifest:${MANIFEST_VERSION:-latest}
+    # MANIFEST_IMAGE makes the compose file usable with a private or fork-owned
+    # registry without maintaining a divergent compose file.
+    image: ${MANIFEST_IMAGE:-manifestdotbuild/manifest}:${MANIFEST_VERSION:-latest}
     ports:
       - "${HOST_BIND_ADDRESS:-127.0.0.1}:${HOST_PORT:-${PORT:-2099}}:${PORT:-2099}"
     # Lets the container reach LLM servers running on the host (Ollama,

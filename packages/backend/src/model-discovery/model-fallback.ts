@@ -341,6 +341,31 @@ export function reconcileCachedSubscriptionContextWindow(
 }
 
 /**
+ * Cached subscription catalogs outlive model retirements. Restrict them to
+ * the provider's current curated list before exposing them to routing; the
+ * next step supplements any newly released entries that an older cache lacks.
+ * Providers without a curated list retain their live-discovered cache.
+ */
+export function filterStaleSubscriptionModels(
+  raw: readonly DiscoveredModel[],
+  providerId: string,
+): DiscoveredModel[] {
+  const knownModels = getSubscriptionKnownModels(providerId);
+  if (!knownModels) return [...raw];
+  const matchMode = getSubscriptionKnownModelsMatch(providerId);
+  return raw.filter((model) => {
+    const normalizedModelId = model.id.toLowerCase();
+    return knownModels.some((knownModel) => {
+      const normalizedKnownModel = knownModel.toLowerCase();
+      return (
+        normalizedModelId === normalizedKnownModel ||
+        (matchMode !== 'exact' && normalizedModelId.startsWith(`${normalizedKnownModel}-`))
+      );
+    });
+  });
+}
+
+/**
  * Supplement discovered models with knownModels from subscription-capabilities.
  * Ensures subscription users always have the known models available as selectable options,
  * even if the live provider API did not return them.

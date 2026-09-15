@@ -119,7 +119,14 @@ const DEEPSEEK_MAX_TOKENS_LIMIT = 8192;
  * OpenAI models that require `max_completion_tokens` instead of `max_tokens`.
  * All o-series reasoning models and GPT-5+ models use the new parameter.
  */
-const OPENAI_MAX_COMPLETION_TOKENS_RE = /^(o\d|gpt-5)/i;
+const OPENAI_MAX_COMPLETION_TOKENS_RE = /^(o\d|gpt-(?:5|6))/i;
+const GPT_6_ASTRA_RE = /^gpt-6-astra(?:$|[-/])/i;
+const GPT_6_ASTRA_UNSUPPORTED_FIELDS = new Set([
+  'temperature',
+  'top_p',
+  'top_logprobs',
+  'logprobs',
+]);
 
 /**
  * Endpoints that ultimately hit OpenAI infrastructure and therefore need
@@ -345,6 +352,7 @@ export function sanitizeOpenAiBody(
   // Strip vendor prefix (e.g., "openai/gpt-5" → "gpt-5") before matching.
   const bareForRegex = model.includes('/') ? model.substring(model.indexOf('/') + 1) : model;
   const needsMaxCompletionTokens = usesOpenAiMaxCompletionTokens(endpointKey, bareForRegex);
+  const isGpt6Astra = GPT_6_ASTRA_RE.test(bareForRegex);
   const convertMaxTokens =
     needsMaxCompletionTokens && 'max_tokens' in body && !('max_completion_tokens' in body);
 
@@ -361,6 +369,10 @@ export function sanitizeOpenAiBody(
       cleaned['max_completion_tokens'] = value;
       continue;
     }
+    // GPT-6 Astra rejects sampling and log-probability controls on both
+    // OpenAI API surfaces. Strip caller-provided legacy defaults before the
+    // passthrough branch so they cannot make an otherwise valid request fail.
+    if (isGpt6Astra && GPT_6_ASTRA_UNSUPPORTED_FIELDS.has(key)) continue;
     if (passthroughTopLevel) {
       cleaned[key] = value;
       continue;

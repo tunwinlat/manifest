@@ -289,7 +289,21 @@ export class ProxyService {
       return this.buildNoProviderResult(stream, agentName);
     }
 
-    const route = resolved.route;
+    const route = await this.providerKeyService.resolveNewerRouteVariant(
+      tenantId,
+      resolved.route,
+      agentId,
+    );
+    if (route !== resolved.route) {
+      resolved.route = route;
+      if (resolved.fallback_routes) {
+        resolved.fallback_routes = await Promise.all(
+          resolved.fallback_routes.map((fallback) =>
+            this.providerKeyService.resolveNewerRouteVariant(tenantId, fallback, agentId),
+          ),
+        );
+      }
+    }
     const credentials = await this.resolveCredentials(agentId, tenantId, {
       provider: route.provider,
       auth_type: route.authType,

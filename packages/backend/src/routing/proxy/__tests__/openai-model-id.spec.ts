@@ -134,6 +134,30 @@ describe('OpenAI model ids', () => {
     expect(routeForOpenAiModelId('some-retired-model', [model()])).toBeNull();
   });
 
+  it('upgrades a provider-qualified API request to a newer minor in the same family', () => {
+    expect(
+      routeForOpenAiModelId('anthropic/claude-sonnet-5', [
+        model({
+          id: 'claude-sonnet-5-1',
+          provider: 'anthropic',
+          authType: 'api_key',
+        }),
+      ]),
+    ).toEqual({
+      provider: 'anthropic',
+      authType: 'api_key',
+      model: 'claude-sonnet-5-1',
+    });
+  });
+
+  it('does not cross OpenAI product variants while upgrading a route', () => {
+    expect(
+      routeForOpenAiModelId('openai/gpt-5.6-sol-subscription', [
+        model({ id: 'gpt-5.7-terra', authType: 'subscription' }),
+      ]),
+    ).toBeNull();
+  });
+
   it('parses an uncatalogued provider-qualified model into its transport route', () => {
     expect(explicitModelRouteCandidate('openrouter/anthropic/claude-new')).toEqual({
       provider: 'openrouter',

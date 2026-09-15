@@ -13,7 +13,9 @@ jest.mock('../../../common/utils/crypto.util', () => ({
   getEncryptionSecret: jest.fn(() => 'a'.repeat(64)),
   getDecryptionSecrets: jest.fn(() => ['test-secret-32-chars-long-enough!!']),
   decryptWithAny: jest.fn((ciphertext: string, secrets: string[]) => {
-    const mod = jest.requireMock('../../../common/utils/crypto.util') as { decrypt: (c: string, s: string) => string };
+    const mod = jest.requireMock('../../../common/utils/crypto.util') as {
+      decrypt: (c: string, s: string) => string;
+    };
     return { plaintext: mod.decrypt(ciphertext, secrets[0]), secretIndex: 0 };
   }),
 }));
@@ -650,6 +652,19 @@ describe('ProviderKeyService', () => {
       ).toBe(true);
     });
 
+    it('keeps a pinned route available when discovery has a newer same-family model', async () => {
+      discoveryService.getModelsForAgent.mockResolvedValue([
+        discovered('anthropic', 'claude-sonnet-5-1', 'subscription'),
+      ]);
+      expect(
+        await svc.isRouteAvailable('tenant-1', {
+          provider: 'anthropic',
+          authType: 'subscription',
+          model: 'claude-sonnet-5',
+        }),
+      ).toBe(true);
+    });
+
     it('delegates to isModelAvailable when the route has no provider pin', async () => {
       discoveryService.getModelForAgent.mockResolvedValue({ id: 'gpt-4o' } as never);
       expect(
@@ -664,6 +679,29 @@ describe('ProviderKeyService', () => {
         'gpt-4o',
         undefined,
       );
+    });
+  });
+
+  describe('resolveNewerRouteVariant', () => {
+    it('uses a discovered newer minor while retaining provider and auth pins', async () => {
+      discoveryService.getModelsForAgent.mockResolvedValue([
+        { id: 'gpt-5.7-sol', provider: 'openai', authType: 'subscription' } as never,
+        { id: 'gpt-5.7-terra', provider: 'openai', authType: 'subscription' } as never,
+      ]);
+
+      await expect(
+        svc.resolveNewerRouteVariant('tenant-1', {
+          provider: 'openai',
+          authType: 'subscription',
+          model: 'gpt-5.6-sol',
+          keyLabel: 'Pro',
+        }),
+      ).resolves.toEqual({
+        provider: 'openai',
+        authType: 'subscription',
+        model: 'gpt-5.7-sol',
+        keyLabel: 'Pro',
+      });
     });
   });
 

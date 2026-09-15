@@ -38,6 +38,7 @@ import {
   buildFallbackModels,
   buildModelsDevFallback,
   buildSubscriptionFallbackModels,
+  filterStaleSubscriptionModels,
   reconcileCachedSubscriptionContextWindow,
   supplementWithKnownModels,
 } from './model-fallback';
@@ -558,7 +559,21 @@ export class ModelDiscoveryService {
       const providerAuthType: AuthType = p.auth_type;
       const providerId = p.provider.toLowerCase();
       const filterKey = nonChatFilterKey(providerId, providerAuthType);
-      const cached = filterNonChatModels(rawCached, filterKey);
+      // Discovery persists curated subscription models, but an existing
+      // connection may have been cached before a newly supported model was
+      // released. Apply the same supplementation to this read-only view so a
+      // deployment exposes the curated model immediately, without requiring a
+      // user-triggered provider refresh. Copy first because the helper appends
+      // missing entries in place.
+      const currentCached =
+        providerAuthType === 'subscription'
+          ? filterStaleSubscriptionModels(rawCached, p.provider)
+          : rawCached;
+      const cachedWithKnownModels =
+        providerAuthType === 'subscription'
+          ? supplementWithKnownModels(currentCached, p.provider)
+          : currentCached;
+      const cached = filterNonChatModels(cachedWithKnownModels, filterKey);
       for (const cachedModel of cached) {
         const m =
           providerAuthType === 'subscription'

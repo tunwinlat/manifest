@@ -1,18 +1,21 @@
-name: Docker
+name: Docker image
+
+# Pull requests only build the image. Publishing is deliberately manual and
+# targets this repository's GitHub Container Registry package; no external
+# registry credentials or upstream namespace are required.
 
 on:
   workflow_dispatch:
     inputs:
       version:
-        description: "Optional version override (e.g. 6.18.0). Leave blank to use the current version from packages/manifest/package.json."
-        required: false
+        description: "Image version to publish (for example, 6.18.0)."
+        required: true
         type: string
-  workflow_call:
-    inputs:
-      version:
-        description: "Optional version override. Leave blank to use the current version from packages/manifest/package.json."
-        required: false
-        type: string
+      latest:
+        description: "Also update the latest tag."
+        required: true
+        default: false
+        type: boolean
   pull_request:
     branches: [main]
     paths:
@@ -32,8 +35,13 @@ on:
 permissions:
   contents: read
 
+concurrency:
+  group: docker-${{ github.workflow }}-${{ github.event.pull_request.number || github.ref }}
+  cancel-in-progress: true
+
 env:
-  IMAGE: manifestdotbuild/manifest
+  REGISTRY: ghcr.io
+  IMAGE_NAME: ${{ github.repository }}
 
 jobs:
   validate:
@@ -62,7 +70,7 @@ jobs:
 
   build:
     name: Build (${{ matrix.platform.arch }})
-    if: github.event_name != 'pull_request'
+    if: github.event_name == 'workflow_dispatch'
     strategy:
       fail-fast: true
       matrix:
@@ -72,38 +80,51 @@ jobs:
     runs-on: ${{ matrix.platform.os }}
     permissions:
       contents: read
+      packages: write
       id-token: write
     steps:
       - uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683 # v4.2.2
 
       - uses: docker/setup-buildx-action@e468171a9de216ec08956ac3ada2f0791b6bd435 # v3.11.1
 
+      - name: Validate package version
+        env:
+          VERSION: ${{ inputs.version }}
+        run: |
+          expected=$(node -p "require('./packages/manifest/package.json').version")
+          if [[ "$VERSION" != "$expected" ]]; then
+            echo "::error::Version must match packages/manifest/package.json ($expected)."
+            exit 1
+          fi
+
       - uses: docker/login-action@184bdaa0721073962dff0199f1fb9940f07167d1 # v3.5.0
         with:
-          username: ${{ secrets.DOCKERHUB_USERNAME }}
-          password: ${{ secrets.DOCKERHUB_TOKEN }}
+          registry: ${{ env.REGISTRY }}
+          username: ${{ github.actor }}
+          password: ${{ secrets.GITHUB_TOKEN }}
 
       - uses: docker/metadata-action@c1e51972afc2121e065aed6d45c65596fe445f3f # v5.8.0
         id: meta
         with:
-          images: ${{ env.IMAGE }}
+          images: ${{ env.REGISTRY }}/${{ env.IMAGE_NAME }}
 
       - id: build
         uses: docker/build-push-action@263435318d21b8e681c14492fe198d362a7d2c83 # v6.18.0
         with:
           context: .
           file: docker/Dockerfile
+          push: true
           platforms: linux/${{ matrix.platform.arch }}
           labels: ${{ steps.meta.outputs.labels }}
-          outputs: type=image,name=${{ env.IMAGE }},push-by-digest=true,name-canonical=true,push=true
-          cache-from: type=gha,scope=${{ matrix.platform.arch }}
-          cache-to: type=gha,mode=max,scope=${{ matrix.platform.arch }}
+          outputs: type=image,name=${{ env.REGISTRY }}/${{ env.IMAGE_NAME }},push-by-digest=true,name-canonical=true,push=true
+          cache-from: type=gha,scope=publish-${{ matrix.platform.arch }}
+          cache-to: type=gha,mode=max,scope=publish-${{ matrix.platform.arch }}
           sbom: true
           provenance: mode=max
 
       - name: Export digest
         run: |
-          mkdir -p ${{ runner.temp }}/digests
+          mkdir -p "${{ runner.temp }}/digests"
           digest="${{ steps.build.outputs.digest }}"
           touch "${{ runner.temp }}/digests/${digest#sha256:}"
 
@@ -116,27 +137,17 @@ jobs:
           retention-days: 1
 
   merge:
-    name: Merge & Publish
-    if: github.event_name != 'pull_request'
+    name: Merge and publish
+    if: github.event_name == 'workflow_dispatch'
     needs: build
     runs-on: ubuntu-latest
     permissions:
       contents: read
+      packages: write
+      attestations: write
       id-token: write
     steps:
       - uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683 # v4.2.2
-
-      - name: Resolve version
-        id: version
-        run: |
-          if [ -n "${{ inputs.version }}" ]; then
-            VERSION="${{ inputs.version }}"
-            echo "Using version from workflow input: $VERSION"
-          else
-            VERSION=$(jq -r .version packages/manifest/package.json)
-            echo "Using version from packages/manifest/package.json: $VERSION"
-          fi
-          echo "version=$VERSION" >> "$GITHUB_OUTPUT"
 
       - name: Download digests
         uses: actions/download-artifact@d3f86a106a0bac45b974a628896c90dbdf5c8093 # v4.3.0
@@ -149,49 +160,40 @@ jobs:
 
       - uses: docker/login-action@184bdaa0721073962dff0199f1fb9940f07167d1 # v3.5.0
         with:
-          username: ${{ secrets.DOCKERHUB_USERNAME }}
-          password: ${{ secrets.DOCKERHUB_TOKEN }}
+          registry: ${{ env.REGISTRY }}
+          username: ${{ github.actor }}
+          password: ${{ secrets.GITHUB_TOKEN }}
 
       - uses: docker/metadata-action@c1e51972afc2121e065aed6d45c65596fe445f3f # v5.8.0
         id: meta
         with:
-          images: ${{ env.IMAGE }}
-          flavor: |
-            latest=true
+          images: ${{ env.REGISTRY }}/${{ env.IMAGE_NAME }}
           tags: |
-            type=semver,pattern={{version}},value=${{ steps.version.outputs.version }}
-            type=semver,pattern={{major}}.{{minor}},value=${{ steps.version.outputs.version }}
-            type=semver,pattern={{major}},value=${{ steps.version.outputs.version }}
+            type=raw,value=${{ inputs.version }}
+            type=raw,value=latest,enable=${{ inputs.latest }}
             type=sha
 
-      - name: Create manifest list and push
+      - name: Create multi-platform manifest
         working-directory: ${{ runner.temp }}/digests
         run: |
+          # shellcheck disable=SC2046 # Each generated tag and digest is one CLI argument.
           docker buildx imagetools create \
             $(jq -cr '.tags | map("-t " + .) | join(" ")' <<< "$DOCKER_METADATA_OUTPUT_JSON") \
-            $(printf '${{ env.IMAGE }}@sha256:%s ' *)
+            $(printf '${{ env.REGISTRY }}/${{ env.IMAGE_NAME }}@sha256:%s ' *)
 
-      - name: Inspect image
+      - name: Resolve published digest
+        id: image
         run: |
-          docker buildx imagetools inspect ${{ env.IMAGE }}:${{ steps.meta.outputs.version }}
+          digest=$(docker buildx imagetools inspect \
+            "${{ env.REGISTRY }}/${{ env.IMAGE_NAME }}:${{ inputs.version }}" \
+            --format '{{json .}}' | jq -r '.manifest.digest')
+          test -n "$digest"
+          test "$digest" != "null"
+          echo "digest=$digest" >> "$GITHUB_OUTPUT"
 
-      - uses: sigstore/cosign-installer@d58896d6a1865668819e1d91763c7751a165e159 # v3.9.2
-
-      - name: Sign published image
-        env:
-          TAGS: ${{ steps.meta.outputs.tags }}
-          VERSION: ${{ steps.meta.outputs.version }}
-        run: |
-          # Extract the manifest-list digest from the freshly-pushed tag.
-          # Uses the pattern established by the dagger project and others: format
-          # the full inspect output as JSON and pull .manifest.digest out with jq.
-          DIGEST=$(docker buildx imagetools inspect "${{ env.IMAGE }}:${VERSION}" --format '{{json .}}' | jq -r '.manifest.digest')
-          if [ -z "$DIGEST" ] || [ "$DIGEST" = "null" ]; then
-            echo "::error::Failed to extract manifest-list digest for ${{ env.IMAGE }}:${VERSION}"
-            docker buildx imagetools inspect "${{ env.IMAGE }}:${VERSION}" --format '{{json .}}'
-            exit 1
-          fi
-          echo "Signing manifest list digest: $DIGEST"
-          for tag in ${TAGS}; do
-            cosign sign --yes "${tag}@${DIGEST}"
-          done
+      - name: Attest published image
+        uses: actions/attest-build-provenance@520d128f165991a6c774bcb264f323e3d70747f4 # v2.2.0
+        with:
+          subject-name: ${{ env.REGISTRY }}/${{ env.IMAGE_NAME }}
+          subject-digest: ${{ steps.image.outputs.digest }}
+          push-to-registry: true

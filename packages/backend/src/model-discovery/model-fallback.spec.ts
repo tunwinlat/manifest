@@ -2,6 +2,7 @@ import {
   buildFallbackModels,
   buildModelsDevFallback,
   buildSubscriptionFallbackModels,
+  filterStaleSubscriptionModels,
   reconcileCachedSubscriptionContextWindow,
   supplementWithKnownModels,
   findOpenRouterPrefix,
@@ -316,11 +317,15 @@ describe('buildSubscriptionFallbackModels', () => {
     expect(result.map((model) => model.id)).toEqual([
       'claude-fable-5',
       'claude-fable-5-1',
-      'claude-opus-4',
-      'claude-sonnet-4',
-      'claude-haiku-4',
       'claude-opus-5',
       'claude-sonnet-5',
+      'claude-haiku-4-5-20251001',
+      'claude-opus-4-8',
+      'claude-opus-4-7',
+      'claude-opus-4-6',
+      'claude-opus-4-5-20251101',
+      'claude-sonnet-4-6',
+      'claude-sonnet-4-5-20250929',
     ]);
     expect(result.every((model) => model.provider === 'anthropic')).toBe(true);
     expect(result.every((model) => model.displayName === model.id)).toBe(true);
@@ -331,7 +336,7 @@ describe('buildSubscriptionFallbackModels', () => {
   it('applies subscription context windows to curated models', () => {
     const result = buildSubscriptionFallbackModels('anthropic');
 
-    expect(result.find((model) => model.id === 'claude-opus-4')?.contextWindow).toBe(200000);
+    expect(result.find((model) => model.id === 'claude-opus-4-8')?.contextWindow).toBe(1000000);
     expect(result.find((model) => model.id === 'claude-opus-5')?.contextWindow).toBe(1000000);
     expect(result.find((model) => model.id === 'claude-sonnet-5')?.contextWindow).toBe(1000000);
     expect(result.every((model) => model.contextWindowSource === 'subscription_config')).toBe(true);
@@ -397,7 +402,7 @@ describe('supplementWithKnownModels', () => {
     expect(result.every((model) => model.contextWindowSource === 'subscription_config')).toBe(true);
   });
 
-  it('should not add known models that are already covered', () => {
+  it('does not duplicate exact known models while adding missing active siblings', () => {
     const raw = [
       {
         id: 'claude-opus-4-6',
@@ -415,7 +420,8 @@ describe('supplementWithKnownModels', () => {
     const result = supplementWithKnownModels(raw, 'anthropic');
 
     const opusEntries = result.filter((m) => m.id.startsWith('claude-opus-4'));
-    expect(opusEntries).toHaveLength(1);
+    expect(opusEntries).toHaveLength(4);
+    expect(opusEntries.filter((m) => m.id === 'claude-opus-4-6')).toHaveLength(1);
   });
 
   it('keeps explicit gemini preview known models separate in exact mode', () => {
@@ -440,6 +446,57 @@ describe('supplementWithKnownModels', () => {
     expect(ids).toContain('gemini-3.1-flash-lite-preview');
     expect(ids).not.toContain('gemini-3.1-pro-preview');
     expect(ids).not.toContain('gemini-3-flash-preview');
+  });
+});
+
+describe('filterStaleSubscriptionModels', () => {
+  it('drops retired cached IDs while retaining currently curated subscription models', () => {
+    const result = filterStaleSubscriptionModels(
+      [
+        {
+          id: 'claude-haiku-4',
+          displayName: 'Claude Haiku 4',
+          provider: 'anthropic',
+          contextWindow: 200000,
+          inputPricePerToken: 0,
+          outputPricePerToken: 0,
+          capabilityReasoning: false,
+          capabilityCode: false,
+          qualityScore: 3,
+        },
+        {
+          id: 'claude-haiku-4-5-20251001',
+          displayName: 'Claude Haiku 4.5',
+          provider: 'anthropic',
+          contextWindow: 200000,
+          inputPricePerToken: 0,
+          outputPricePerToken: 0,
+          capabilityReasoning: false,
+          capabilityCode: false,
+          qualityScore: 3,
+        },
+      ],
+      'anthropic',
+    );
+
+    expect(result.map((model) => model.id)).toEqual(['claude-haiku-4-5-20251001']);
+  });
+
+  it('does not filter providers whose subscription models are discovered live', () => {
+    const raw = [
+      {
+        id: 'live-model',
+        displayName: 'Live model',
+        provider: 'nous',
+        contextWindow: 128000,
+        inputPricePerToken: 0,
+        outputPricePerToken: 0,
+        capabilityReasoning: false,
+        capabilityCode: false,
+        qualityScore: 3,
+      },
+    ];
+    expect(filterStaleSubscriptionModels(raw, 'nous')).toEqual(raw);
   });
 });
 
@@ -475,7 +532,7 @@ describe('reconcileCachedSubscriptionContextWindow', () => {
     expect(reconcileCachedSubscriptionContextWindow(model, 'openai')).toBe(model);
   });
 
-  it('matches subscription catalogs and context overrides by prefix', () => {
+  it('does not reclassify uncurated snapshots under an exact subscription catalog', () => {
     const cached = {
       ...model,
       id: 'claude-opus-4-8-20260801',
@@ -484,9 +541,7 @@ describe('reconcileCachedSubscriptionContextWindow', () => {
       contextWindowSource: 'subscription_config' as const,
     };
 
-    expect(reconcileCachedSubscriptionContextWindow(cached, 'anthropic')).toMatchObject({
-      contextWindow: 1000000,
-    });
+    expect(reconcileCachedSubscriptionContextWindow(cached, 'anthropic')).toBe(cached);
   });
 
   it('preserves tagged rows outside the current subscription catalog', () => {
