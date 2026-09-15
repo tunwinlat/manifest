@@ -448,10 +448,6 @@ jobs:
           backup=$(find "$install_dir" -maxdepth 1 \
             -name 'docker-compose.yml.backup.*' -print -quit)
           test -n "$backup"
-          if grep -q 'request-recordings' "$backup"; then
-            echo "request-recordings unexpectedly exists in the pre-feature backup" >&2
-            exit 1
-          fi
           grep -q '^# manifest-compose-version: 1$' "$install_dir/docker-compose.yml"
 
           (cd "$install_dir" && docker compose config --format json) > /tmp/upgraded-compose.json

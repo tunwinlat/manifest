@@ -48,6 +48,7 @@ vi.mock("../../src/services/auth-client.js", () => ({
 let mockIsSelfHosted = true;
 vi.mock("../../src/services/setup-status.js", () => ({
   checkIsSelfHosted: () => Promise.resolve(mockIsSelfHosted),
+  checkPrivacyMode: () => false,
 }));
 
 // Stub the create-harness modal so the Sidebar test stays isolated from the

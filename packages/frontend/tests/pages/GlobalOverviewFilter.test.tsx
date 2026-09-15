@@ -261,6 +261,7 @@ vi.mock('manifest-shared', () => ({
 let mockIsSelfHosted = false;
 vi.mock('../../src/services/setup-status.js', () => ({
   checkIsSelfHosted: () => Promise.resolve(mockIsSelfHosted),
+  checkPrivacyMode: () => false,
 }));
 
 import GlobalOverview from '../../src/pages/GlobalOverview';
