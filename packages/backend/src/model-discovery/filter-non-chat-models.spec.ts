@@ -426,6 +426,26 @@ describe('filterNonChatModels', () => {
       expect(PROVIDER_BLOCKLIST['openai-subscription'].has('gpt-5.1-codex')).toBe(true);
     });
 
+    it('blocks deprecated Anthropic models but keeps active ones', () => {
+      const models = [
+        makeModel('claude-sonnet-4-20250514'),
+        makeModel('claude-opus-4-20250514'),
+        makeModel('claude-opus-4-1-20250805'),
+        makeModel('claude-3-haiku-20240307'),
+        makeModel('claude-opus-5-5'),
+        makeModel('claude-sonnet-5-5'),
+        makeModel('claude-sonnet-4-5-20250929'),
+        makeModel('claude-haiku-4-5-20251001'),
+      ];
+      const result = filterNonChatModels(models, 'anthropic');
+      expect(result.map((m) => m.id)).toEqual([
+        'claude-opus-5-5',
+        'claude-sonnet-5-5',
+        'claude-sonnet-4-5-20250929',
+        'claude-haiku-4-5-20251001',
+      ]);
+    });
+
     it('has blocklist entry for mistral voxtral-mini-2602', () => {
       expect(PROVIDER_BLOCKLIST).toHaveProperty('mistral');
       expect(PROVIDER_BLOCKLIST.mistral.has('voxtral-mini-2602')).toBe(true);

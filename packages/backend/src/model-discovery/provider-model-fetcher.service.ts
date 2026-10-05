@@ -463,6 +463,15 @@ export const PROVIDER_NON_CHAT: Record<string, RegExp> = {
  * or metadata field can catch the model. Document WHY each entry exists.
  */
 export const PROVIDER_BLOCKLIST: Record<string, ReadonlySet<string>> = {
+  // Anthropic's /v1/models still lists deprecated models until they retire,
+  // and its response carries no deprecation field. Subscription discovery
+  // shares this key (there is no `anthropic-subscription` entry).
+  anthropic: new Set([
+    'claude-sonnet-4-20250514', // Deprecated; successor claude-sonnet-5-5
+    'claude-opus-4-20250514', // Deprecated; successor claude-opus-5-5
+    'claude-opus-4-1-20250805', // Deprecated; retired 2026-08-05
+    'claude-3-haiku-20240307', // Deprecated; retired 2026-04-19
+  ]),
   'openai-subscription': new Set([
     'gpt-5.3-codex', // ChatGPT Codex returns 400: not supported with a ChatGPT account
     'gpt-5.2-codex', // ChatGPT Codex returns 400: not supported with a ChatGPT account
