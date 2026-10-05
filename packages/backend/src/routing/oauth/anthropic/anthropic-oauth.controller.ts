@@ -40,7 +40,9 @@ export class AnthropicOauthController {
 
   /**
    * Exchange the pasted authorization payload (`<code>#<state>` or just the
-   * code with state in the body) for an OAuth token blob.
+   * code with state in the body) for an OAuth token blob. An optional
+   * `reconnectLabel` replaces the credential on that existing connection
+   * instead of adding a new one.
    */
   @Post('exchange')
   async exchange(
@@ -48,6 +50,7 @@ export class AnthropicOauthController {
     @Body('code') code: string,
     @Body('state') state: string,
     @TenantCtx() ctx: TenantContext,
+    @Body('reconnectLabel') reconnectLabel?: unknown,
   ) {
     if (!agentName) {
       throw new HttpException('agentName query parameter is required', HttpStatus.BAD_REQUEST);
@@ -55,12 +58,26 @@ export class AnthropicOauthController {
     if (!code) {
       throw new HttpException('code is required', HttpStatus.BAD_REQUEST);
     }
+    if (
+      reconnectLabel !== undefined &&
+      (typeof reconnectLabel !== 'string' || !reconnectLabel.trim())
+    ) {
+      throw new HttpException('reconnectLabel must be a non-empty string', HttpStatus.BAD_REQUEST);
+    }
     // Resolve the agent so unknown agents still 404 even if state is valid.
     const agent = await this.resolveAgent.resolve(ctx.tenantId, agentName);
     try {
-      await this.oauthService.exchangeCode(code, state, agent.id, agent.tenant_id, ctx.userId);
+      await this.oauthService.exchangeCode(
+        code,
+        state,
+        agent.id,
+        agent.tenant_id,
+        ctx.userId,
+        reconnectLabel,
+      );
       return { ok: true };
     } catch (err) {
+      if (err instanceof HttpException) throw err;
       const message = err instanceof Error ? err.message : 'Token exchange failed';
       this.logger.error(`Anthropic OAuth exchange failed: ${message}`);
       throw new HttpException(
