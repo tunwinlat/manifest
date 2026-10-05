@@ -142,6 +142,7 @@ describe('AnthropicOAuthDetailView', () => {
         'test-agent',
         OAUTH_PAYLOAD,
         'state-xyz',
+        undefined,
       );
     });
     expect(mockToastSuccess).toHaveBeenCalledWith('Anthropic subscription connected');
@@ -175,6 +176,7 @@ describe('AnthropicOAuthDetailView', () => {
         'test-agent',
         'fresh-code#persisted-state',
         'persisted-state',
+        undefined,
       );
     });
   });
@@ -195,6 +197,7 @@ describe('AnthropicOAuthDetailView', () => {
         'test-agent',
         'code#whatever',
         'whatever',
+        undefined,
       );
     });
   });
@@ -215,6 +218,7 @@ describe('AnthropicOAuthDetailView', () => {
         'test-agent',
         'orphan-code#orphan-state',
         'orphan-state',
+        undefined,
       );
     });
   });
@@ -298,6 +302,7 @@ describe('AnthropicOAuthDetailView', () => {
         'test-agent',
         'code#whatever',
         'whatever',
+        undefined,
       );
     });
     expect(mockGetAnthropicOAuthPending).toHaveBeenCalledTimes(1);
@@ -649,5 +654,116 @@ describe('AnthropicOAuthDetailView — addKeyOpen effect', () => {
 
     expect(screen.queryByLabelText('Anthropic authorization code')).toBeNull();
     expect(screen.getByText('Disconnect')).toBeDefined();
+  });
+});
+
+describe('AnthropicOAuthDetailView — reconnect', () => {
+  beforeEach(() => {
+    vi.clearAllMocks();
+    mockGetAnthropicOAuthPending.mockResolvedValue({ state: null });
+  });
+
+  it('reconnects one account in place from the multi-key list', async () => {
+    mockStartAnthropicOAuth.mockResolvedValue({ url: 'https://x', state: 'state-xyz' });
+    mockSubmitAnthropicOAuth.mockResolvedValue({ ok: true });
+    const { replace } = mockOpenPopup();
+    const keys = [makeKey({ id: 'k1', label: 'Primary' }), makeKey({ id: 'k2', label: 'Key 2' })];
+    const { onUpdate } = renderMultiKeyView(keys);
+
+    fireEvent.click(screen.getByLabelText('Reconnect account Key 2'));
+    await waitFor(() => expect(replace).toHaveBeenCalledWith('https://x'));
+    expect(screen.getByText(/replace the credentials for "Key 2"/)).toBeDefined();
+
+    fireEvent.input(screen.getByLabelText('Anthropic authorization code'), {
+      target: { value: OAUTH_PAYLOAD },
+    });
+    fireEvent.click(screen.getByText('Reconnect'));
+
+    await waitFor(() => {
+      expect(mockSubmitAnthropicOAuth).toHaveBeenCalledWith(
+        'test-agent',
+        OAUTH_PAYLOAD,
+        'state-xyz',
+        'Key 2',
+      );
+    });
+    expect(mockToastSuccess).toHaveBeenCalledWith('Anthropic subscription "Key 2" reconnected');
+    expect(onUpdate).toHaveBeenCalled();
+    // Back on the connected list.
+    expect(screen.getByLabelText('Reconnect account Primary')).toBeDefined();
+  });
+
+  it('reconnects the single connection using its stored label', async () => {
+    mockStartAnthropicOAuth.mockResolvedValue({ url: 'https://x', state: 'state-xyz' });
+    mockSubmitAnthropicOAuth.mockResolvedValue({ ok: true });
+    mockOpenPopup();
+    renderMultiKeyView([makeKey({ id: 'k1', label: 'Key 2' })]);
+
+    fireEvent.click(screen.getByText('Reconnect'));
+    await waitFor(() => expect(mockStartAnthropicOAuth).toHaveBeenCalledWith('test-agent'));
+
+    fireEvent.input(screen.getByLabelText('Anthropic authorization code'), {
+      target: { value: OAUTH_PAYLOAD },
+    });
+    fireEvent.click(screen.getByText('Reconnect'));
+
+    await waitFor(() => {
+      expect(mockSubmitAnthropicOAuth).toHaveBeenCalledWith(
+        'test-agent',
+        OAUTH_PAYLOAD,
+        'state-xyz',
+        'Key 2',
+      );
+    });
+  });
+
+  it('hides Reconnect on the single view when the connection label is unknown', () => {
+    renderView(true);
+    expect(screen.getByText('Disconnect')).toBeDefined();
+    expect(screen.queryByText('Reconnect')).toBeNull();
+  });
+
+  it('cancelling a reconnect returns to the connected view', async () => {
+    mockStartAnthropicOAuth.mockResolvedValue({ url: 'https://x', state: 'state-xyz' });
+    mockOpenPopup();
+    renderMultiKeyView([
+      makeKey({ id: 'k1', label: 'Primary' }),
+      makeKey({ id: 'k2', label: 'B' }),
+    ]);
+
+    fireEvent.click(screen.getByLabelText('Reconnect account Primary'));
+    await waitFor(() => expect(mockStartAnthropicOAuth).toHaveBeenCalled());
+    fireEvent.click(screen.getByText('Cancel'));
+
+    expect(screen.getByText('Accounts')).toBeDefined();
+    expect(mockSubmitAnthropicOAuth).not.toHaveBeenCalled();
+  });
+
+  it('drops out of reconnect mode when the popup is blocked', () => {
+    vi.spyOn(window, 'open').mockReturnValue(null);
+    renderMultiKeyView([
+      makeKey({ id: 'k1', label: 'Primary' }),
+      makeKey({ id: 'k2', label: 'B' }),
+    ]);
+
+    fireEvent.click(screen.getByLabelText('Reconnect account Primary'));
+
+    expect(mockToastError).toHaveBeenCalledWith(expect.stringMatching(/Popup was blocked/));
+    expect(screen.getByText('Accounts')).toBeDefined();
+    expect(mockStartAnthropicOAuth).not.toHaveBeenCalled();
+  });
+
+  it('drops out of reconnect mode when starting OAuth fails', async () => {
+    mockStartAnthropicOAuth.mockRejectedValue(new Error('nope'));
+    const { close } = mockOpenPopup();
+    renderMultiKeyView([
+      makeKey({ id: 'k1', label: 'Primary' }),
+      makeKey({ id: 'k2', label: 'B' }),
+    ]);
+
+    fireEvent.click(screen.getByLabelText('Reconnect account Primary'));
+
+    await waitFor(() => expect(close).toHaveBeenCalled());
+    expect(screen.getByText('Accounts')).toBeDefined();
   });
 });

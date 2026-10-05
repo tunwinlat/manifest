@@ -99,6 +99,10 @@ export class AnthropicOauthService {
    * Exchange the pasted authorization code for an OAuth token blob.
    * `payload` may be either the bare code or the `<code>#<state>` form
    * Anthropic's redirect page displays.
+   *
+   * With `reconnectLabel`, the new token replaces the credential on that
+   * existing connection instead of adding a new one, so routing pinned to it
+   * keeps working.
    */
   async exchangeCode(
     payload: string,
@@ -106,10 +110,19 @@ export class AnthropicOauthService {
     agentId: string,
     tenantId: string,
     createdByUserId?: string | null,
+    reconnectLabel?: string,
   ): Promise<void> {
     const { code, state: extractedState } = splitAnthropicAuthPayload(payload);
     let state = extractedState ?? fallbackState?.trim();
     if (!code) throw new Error('Missing authorization code');
+    const targetLabel =
+      reconnectLabel === undefined
+        ? undefined
+        : await this.providerService.findSubscriptionConnectionLabel(
+            tenantId,
+            PROVIDER,
+            reconnectLabel,
+          );
     if (!state) {
       const latest = await this.pendingFlows.findLatestForAgent(PROVIDER, agentId, tenantId);
       state = latest?.state;
@@ -150,6 +163,19 @@ export class AnthropicOauthService {
       r: data.refresh_token ?? '',
       e: Date.now() + data.expires_in * 1000,
     };
+
+    if (targetLabel !== undefined) {
+      await this.providerService.replaceSubscriptionCredential(
+        pending.tenantId,
+        PROVIDER,
+        targetLabel,
+        serializeOAuthTokenBlob(blob),
+      );
+      this.logger.log(
+        `Anthropic OAuth token replaced for connection "${targetLabel}" (agent=${pending.agentId})`,
+      );
+      return;
+    }
 
     const label = await this.providerService.nextOAuthLabel(pending.tenantId, PROVIDER);
     const { provider: savedProvider } = await this.providerService.upsertProvider(

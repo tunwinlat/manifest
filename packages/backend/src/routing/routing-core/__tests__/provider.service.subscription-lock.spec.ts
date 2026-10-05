@@ -24,7 +24,7 @@ interface LockRow {
   updated_at?: string;
 }
 
-function makeHarness(row: LockRow | null) {
+function makeHarness(row: LockRow | null, rows: Array<{ label: string }> = []) {
   const andWhereCalls: Array<[string, Record<string, unknown> | undefined]> = [];
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
   const lockQb: any = {
@@ -49,6 +49,7 @@ function makeHarness(row: LockRow | null) {
   };
 
   const providerRepo = {
+    find: jest.fn().mockResolvedValue(rows),
     manager: {
       transaction: jest.fn((cb: (m: typeof outerManager) => Promise<unknown>) => cb(outerManager)),
     },
@@ -73,7 +74,7 @@ function makeHarness(row: LockRow | null) {
     makeRepo() as unknown as Repository<AgentEnabledProvider>,
   );
 
-  return { svc, outerManager, subUpdate, andWhereCalls, routingCache };
+  return { svc, outerManager, subUpdate, andWhereCalls, routingCache, providerRepo };
 }
 
 describe('ProviderService.withSubscriptionCredentialLock', () => {
@@ -180,5 +181,70 @@ describe('ProviderService.withSubscriptionCredentialLock', () => {
       }),
     ).rejects.toThrow(/No subscription credential row/);
     expect(routingCache.invalidateTenant).not.toHaveBeenCalled();
+  });
+});
+
+describe('ProviderService reconnect helpers', () => {
+  let originalSecret: string | undefined;
+
+  beforeEach(() => {
+    originalSecret = process.env.BETTER_AUTH_SECRET;
+    process.env.BETTER_AUTH_SECRET = 'a'.repeat(48);
+  });
+
+  afterEach(() => {
+    if (originalSecret === undefined) delete process.env.BETTER_AUTH_SECRET;
+    else process.env.BETTER_AUTH_SECRET = originalSecret;
+  });
+
+  it('findSubscriptionConnectionLabel returns the stored label for an active connection', async () => {
+    const { svc, providerRepo } = makeHarness(null, [{ label: 'Default' }, { label: 'Key 2' }]);
+
+    await expect(
+      svc.findSubscriptionConnectionLabel('tenant-1', 'anthropic', ' key 2 '),
+    ).resolves.toBe('Key 2');
+    expect(providerRepo.find).toHaveBeenCalledWith({
+      where: {
+        tenant_id: 'tenant-1',
+        provider: 'anthropic',
+        auth_type: 'subscription',
+        is_active: true,
+      },
+    });
+  });
+
+  it('findSubscriptionConnectionLabel 404s when no active connection has that label', async () => {
+    const { svc } = makeHarness(null, [{ label: 'Default' }]);
+
+    await expect(
+      svc.findSubscriptionConnectionLabel('tenant-1', 'anthropic', 'Key 9'),
+    ).rejects.toThrow('No anthropic subscription connection named "Key 9"');
+  });
+
+  it('replaceSubscriptionCredential writes the new blob onto the locked row in place', async () => {
+    const { svc, subUpdate, andWhereCalls, routingCache } = makeHarness({
+      id: 'tp-1',
+      api_key_encrypted: encrypt('old-dead-blob', getEncryptionSecret()),
+    });
+
+    await svc.replaceSubscriptionCredential('tenant-1', 'anthropic', 'Default', 'new-blob');
+
+    expect(andWhereCalls).toContainEqual(['LOWER(tp.label) = :label', { label: 'default' }]);
+    expect(subUpdate).toHaveBeenCalledTimes(1);
+    const [where, patch] = subUpdate.mock.calls[0] as [
+      { id: string },
+      { api_key_encrypted: string },
+    ];
+    expect(where).toEqual({ id: 'tp-1' });
+    expect(decrypt(patch.api_key_encrypted, getEncryptionSecret())).toBe('new-blob');
+    expect(routingCache.invalidateTenant).toHaveBeenCalledWith('tenant-1');
+  });
+
+  it('replaceSubscriptionCredential fails when the connection disappeared', async () => {
+    const { svc } = makeHarness(null);
+
+    await expect(
+      svc.replaceSubscriptionCredential('tenant-1', 'anthropic', 'Default', 'new-blob'),
+    ).rejects.toThrow(/No subscription credential row/);
   });
 });
