@@ -334,6 +334,8 @@ describe('getSubscriptionKnownModels', () => {
     expect(models).not.toContain('claude-sonnet-4');
     // claude-sonnet-5 (launched 2026-06-30) is served on the Claude plan.
     expect(models).toContain('claude-sonnet-5');
+    expect(models).toContain('claude-opus-5-5');
+    expect(models).toContain('claude-sonnet-5-5');
   });
 
   it('returns the curated ChatGPT plan models for OpenAI', () => {
@@ -502,6 +504,8 @@ describe('getSubscriptionCapabilities', () => {
     expect(caps?.modelContextWindows?.['claude-opus-4-8']).toBe(1000000);
     // Opus 5 is 1M too; without an entry it would fall back to the 200k default.
     expect(caps?.modelContextWindows?.['claude-opus-5']).toBe(1000000);
+    expect(caps?.modelContextWindows?.['claude-opus-5-5']).toBe(1000000);
+    expect(caps?.modelContextWindows?.['claude-sonnet-5-5']).toBe(1000000);
   });
 
   it('returns capabilities for OpenAI subscription', () => {

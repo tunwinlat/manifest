@@ -23,9 +23,10 @@ function stripProviderPrefix(provider: string, model: string): string {
 }
 
 function parseAnthropicModel(model: string): ParsedVersionedModel | null {
-  const match = /^claude-(fable|opus|sonnet|haiku)-(\d+)(?:[-.](\d+))?(?:[-@.]?(\d{8}))?$/i.exec(
-    model,
-  );
+  // The minor is capped at two digits so a dated major-only ID such as
+  // `claude-sonnet-4-20250514` parses as 4.0 + snapshot, not minor 20250514.
+  const match =
+    /^claude-(fable|opus|sonnet|haiku)-(\d+)(?:[-.](\d{1,2}))?(?:[-@.]?(\d{8}))?$/i.exec(model);
   if (!match) return null;
   return {
     family: `claude-${match[1].toLowerCase()}`,
