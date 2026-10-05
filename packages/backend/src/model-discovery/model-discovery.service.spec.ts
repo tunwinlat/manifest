@@ -1882,9 +1882,11 @@ describe('ModelDiscoveryService', () => {
         'claude-opus-4-7',
         'claude-opus-4-8',
         'claude-opus-5',
+        'claude-opus-5-5',
         'claude-sonnet-4-5-20250929',
         'claude-sonnet-4-6',
         'claude-sonnet-5',
+        'claude-sonnet-5-5',
       ]);
       expect(result.map((m) => m.id)).not.toContain('claude-sonnet-5:batch');
       expect(mockPricingSync.getAll).not.toHaveBeenCalled();
@@ -2246,7 +2248,7 @@ describe('ModelDiscoveryService', () => {
       );
 
       // Subscription membership comes only from the curated knownModels list.
-      expect(result).toHaveLength(11);
+      expect(result).toHaveLength(13);
       expect(result.map((m) => m.id).sort()).toEqual([
         'claude-fable-5',
         'claude-fable-5-1',
@@ -2256,9 +2258,11 @@ describe('ModelDiscoveryService', () => {
         'claude-opus-4-7',
         'claude-opus-4-8',
         'claude-opus-5',
+        'claude-opus-5-5',
         'claude-sonnet-4-5-20250929',
         'claude-sonnet-4-6',
         'claude-sonnet-5',
+        'claude-sonnet-5-5',
       ]);
       // All should be stamped as subscription
       for (const m of result) {
@@ -2452,7 +2456,7 @@ describe('ModelDiscoveryService', () => {
       );
 
       // Even without pricingSync, knownModels are returned directly
-      expect(result).toHaveLength(11);
+      expect(result).toHaveLength(13);
       expect(result.map((m) => m.id).sort()).toEqual([
         'claude-fable-5',
         'claude-fable-5-1',
@@ -2462,9 +2466,11 @@ describe('ModelDiscoveryService', () => {
         'claude-opus-4-7',
         'claude-opus-4-8',
         'claude-opus-5',
+        'claude-opus-5-5',
         'claude-sonnet-4-5-20250929',
         'claude-sonnet-4-6',
         'claude-sonnet-5',
+        'claude-sonnet-5-5',
       ]);
       for (const m of result) {
         expect(m.authType).toBe('subscription');
