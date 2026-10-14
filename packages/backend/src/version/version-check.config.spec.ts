@@ -156,6 +156,12 @@ describe('buildVersionCheckConfig', () => {
     expect(buildVersionCheckConfig({ MANIFEST_UPDATE_CHECK_DISABLED: 'true' }).enabled).toBe(false);
   });
 
+  it('never checks in privacy mode', () => {
+    mockIsSelfHosted.mockReturnValue(true);
+    expect(buildVersionCheckConfig({ MANIFEST_PRIVACY_MODE: 'true' }).enabled).toBe(false);
+    expect(buildVersionCheckConfig({ MANIFEST_PRIVACY_MODE: '1' }).enabled).toBe(false);
+  });
+
   it('treats an empty or 0 MANIFEST_UPDATE_CHECK_DISABLED as not disabled', () => {
     mockIsSelfHosted.mockReturnValue(true);
     expect(buildVersionCheckConfig({ MANIFEST_UPDATE_CHECK_DISABLED: '' }).enabled).toBe(true);

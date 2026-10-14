@@ -4985,7 +4985,7 @@ describe('ProviderClient', () => {
       expect(result.wireRequestBody).toEqual(sentBody);
     });
 
-    it('preserves DeepSeek max_tokens above a possible provider limit', async () => {
+    it('caps DeepSeek max_tokens at the provider limit', async () => {
       mockFetch.mockResolvedValue(new Response('{}', { status: 200 }));
 
       await client.forward({
@@ -4997,10 +4997,10 @@ describe('ProviderClient', () => {
       });
 
       const sentBody = JSON.parse(mockFetch.mock.calls[0][1].body);
-      expect(sentBody.max_tokens).toBe(12000);
+      expect(sentBody.max_tokens).toBe(8192);
     });
 
-    it('preserves non-positive DeepSeek max_tokens values for Autofix', async () => {
+    it('drops non-positive DeepSeek max_tokens values', async () => {
       mockFetch.mockResolvedValue(new Response('{}', { status: 200 }));
 
       await client.forward({
@@ -5012,10 +5012,10 @@ describe('ProviderClient', () => {
       });
 
       const sentBody = JSON.parse(mockFetch.mock.calls[0][1].body);
-      expect(sentBody.max_tokens).toBe(0);
+      expect(sentBody.max_tokens).toBeUndefined();
     });
 
-    it('preserves string DeepSeek max_tokens values for Autofix', async () => {
+    it('normalizes string DeepSeek max_tokens values', async () => {
       mockFetch.mockResolvedValue(new Response('{}', { status: 200 }));
 
       await client.forward({
@@ -5027,10 +5027,10 @@ describe('ProviderClient', () => {
       });
 
       const sentBody = JSON.parse(mockFetch.mock.calls[0][1].body);
-      expect(sentBody.max_tokens).toBe('9000');
+      expect(sentBody.max_tokens).toBe(8192);
     });
 
-    it('preserves reasoning_content for Mistral Autofix without mutating the input', async () => {
+    it('strips reasoning_content for Mistral assistant messages without mutating the input', async () => {
       mockFetch.mockResolvedValue(new Response('{}', { status: 200 }));
       const bodyWithReasoningContent = makeBodyWithReasoningContent();
 
@@ -5043,7 +5043,7 @@ describe('ProviderClient', () => {
       });
 
       const sentBody = JSON.parse(mockFetch.mock.calls[0][1].body);
-      expect(sentBody.messages[1].reasoning_content).toBe('Detailed internal reasoning');
+      expect(sentBody.messages[1].reasoning_content).toBeUndefined();
       expect(bodyWithReasoningContent.messages[1].reasoning_content).toBe(
         'Detailed internal reasoning',
       );
@@ -5065,7 +5065,7 @@ describe('ProviderClient', () => {
       expect(sentBody.messages[1].reasoning_content).toBe('Detailed internal reasoning');
     });
 
-    it('preserves reasoning_content for native OpenAI Autofix', async () => {
+    it('strips reasoning_content for native OpenAI targets', async () => {
       mockFetch.mockResolvedValue(new Response('{}', { status: 200 }));
       const bodyWithReasoningContent = makeBodyWithReasoningContent();
 
@@ -5078,10 +5078,10 @@ describe('ProviderClient', () => {
       });
 
       const sentBody = JSON.parse(mockFetch.mock.calls[0][1].body);
-      expect(sentBody.messages[1].reasoning_content).toBe('Detailed internal reasoning');
+      expect(sentBody.messages[1].reasoning_content).toBeUndefined();
     });
 
-    it('preserves reasoning_content for non-DeepSeek OpenRouter targets', async () => {
+    it('strips reasoning_content for non-DeepSeek OpenRouter targets', async () => {
       mockFetch.mockResolvedValue(new Response('{}', { status: 200 }));
       const bodyWithReasoningContent = makeBodyWithReasoningContent();
 
@@ -5094,7 +5094,7 @@ describe('ProviderClient', () => {
       });
 
       const sentBody = JSON.parse(mockFetch.mock.calls[0][1].body);
-      expect(sentBody.messages[1].reasoning_content).toBe('Detailed internal reasoning');
+      expect(sentBody.messages[1].reasoning_content).toBeUndefined();
     });
 
     it('preserves reasoning_content for DeepSeek models on OpenRouter', async () => {
@@ -5221,7 +5221,7 @@ describe('ProviderClient', () => {
 
       const sentBody = JSON.parse(mockFetch.mock.calls[0][1].body);
       expect(sentBody.messages[0]).toBe('unexpected-entry');
-      expect(sentBody.messages[1].reasoning_content).toBe('Detailed internal reasoning');
+      expect(sentBody.messages[1].reasoning_content).toBeUndefined();
     });
 
     it('normalizes non-compliant tool call ids for Mistral while preserving references', async () => {
@@ -6035,7 +6035,7 @@ describe('ProviderClient provider-specific message fields', () => {
     ],
   };
 
-  it('preserves reasoning_content for Zen without consulting model capabilities', async () => {
+  it('strips reasoning_content for Zen when no catalog is wired', async () => {
     const bareClient = new ProviderClient();
 
     await bareClient.forward({
@@ -6047,6 +6047,6 @@ describe('ProviderClient provider-specific message fields', () => {
     });
 
     const sentBody = JSON.parse(mockFetch.mock.calls[0][1].body);
-    expect(sentBody.messages[0].reasoning_content).toBe('upstream thinking');
+    expect(sentBody.messages[0].reasoning_content).toBeUndefined();
   });
 });

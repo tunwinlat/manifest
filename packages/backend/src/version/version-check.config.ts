@@ -1,4 +1,5 @@
 import { isSelfHosted } from '../common/utils/detect-self-hosted';
+import { isPrivacyMode } from '../common/utils/privacy-mode';
 import { readManifestVersion, UNKNOWN_VERSION } from '../telemetry/telemetry.config';
 
 /**
@@ -22,14 +23,16 @@ export interface VersionCheckConfig {
  * Opt-out with `MANIFEST_UPDATE_CHECK_DISABLED=1`. Deliberately separate from
  * the telemetry opt-out: one is "don't send data about me", the other is
  * "don't make outbound calls at all" (air-gapped installs). Cloud never
- * checks — cloud users are always on the latest deploy.
+ * checks — cloud users are always on the latest deploy. Privacy mode (fork)
+ * also turns it off: it is an outbound call to a third party.
  */
 export function buildVersionCheckConfig(env: NodeJS.ProcessEnv = process.env): VersionCheckConfig {
   const disabled = env['MANIFEST_UPDATE_CHECK_DISABLED'];
   const isDisabled = disabled === '1' || disabled === 'true';
   const currentVersion = readManifestVersion();
   return {
-    enabled: isSelfHosted() && !isDisabled && currentVersion !== UNKNOWN_VERSION,
+    enabled:
+      isSelfHosted() && !isDisabled && !isPrivacyMode(env) && currentVersion !== UNKNOWN_VERSION,
     currentVersion,
   };
 }

@@ -2,7 +2,7 @@ import { inferProviderFromModel, type ModelRoute } from 'manifest-shared';
 import type { DiscoveredModel } from '../../model-discovery/model-fetcher';
 import { resolveNewerModelVariant } from '../../common/utils/model-version-family';
 import { unambiguousRoute } from '../routing-core/route-helpers';
-import { openAiModelId } from '../routing-core/public-model-id';
+import { SUBSCRIPTION_MODEL_SUFFIX, openAiModelId } from '../routing-core/public-model-id';
 
 export {
   OPENAI_MODEL_ID_AUTO,

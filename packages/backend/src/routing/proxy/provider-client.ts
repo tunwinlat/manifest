@@ -40,6 +40,10 @@ import {
 } from './proxy-types';
 import { CodexSessionAffinity } from './codex-session-affinity';
 import { ModelsDevReasoningCatalog } from './reasoning-model-catalog';
+import {
+  applyAnthropicModelFixes,
+  applyOpenAiCompatModelFixes,
+} from './deterministic-request-fixes';
 import { toNativeResponsesRequest } from './responses-adapter';
 import { responsesToolNames, ResponsesToolNames } from './responses-tools';
 import { forwardKiroChat } from './kiro-adapter';
@@ -766,6 +770,7 @@ export class ProviderClient {
               thinkingRouteContext,
             });
       requestBody.model = bareModel;
+      applyAnthropicModelFixes(requestBody, bareModel, { translated: ctx.apiMode !== 'messages' });
       if (stream) requestBody.stream = true;
       if (shouldApplyAnthropicAutomaticCacheControl(endpointKey)) {
         applyAnthropicAutomaticCacheControl(requestBody);
@@ -890,6 +895,7 @@ export class ProviderClient {
       requireMaxCompletionTokens: isBedrockRuntimeGpt,
       forwardReasoningEffort: isBedrockRuntimeGpt,
     });
+    applyOpenAiCompatModelFixes(sanitized, endpointKey, ctx.model, this.reasoningCatalog);
     if (stream && endpoint.streamUsageReporting === 'openai_stream_options') {
       const existing =
         typeof sanitized.stream_options === 'object' && sanitized.stream_options !== null
