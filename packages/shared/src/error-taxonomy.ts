@@ -151,6 +151,7 @@ export const ERROR_CLASSES = [
   'local_provider_unavailable',
   'limit_exceeded',
   'plan_request_limit_exceeded',
+  'content_guardrail_blocked',
   'internal',
 ] as const;
 export type ErrorClass = (typeof ERROR_CLASSES)[number];
@@ -185,6 +186,7 @@ const MANIFEST_REASON_TO_CLASSIFICATION: Record<
     origin: 'policy',
     errorClass: 'plan_request_limit_exceeded',
   },
+  content_guardrail_blocked: { origin: 'policy', errorClass: 'content_guardrail_blocked' },
   // Three distinct limits (per-user / per-IP / concurrency) that used to
   // collapse into `manifest_rate_limited`. That legacy reason stays mapped so
   // rows written before the split keep classifying.

@@ -56,6 +56,11 @@ vi.mock("../../src/services/auth-client.js", () => ({
   },
 }));
 
+vi.mock("../../src/pages/LimitsContentGuardrailsSection.js", () => ({
+  default: (props: any) => (
+    <div data-testid="content-guardrails-section" data-agent={props.agentName()} />
+  ),
+}));
 import Limits from "../../src/pages/Limits";
 
 describe("Limits page interactions", () => {

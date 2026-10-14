@@ -32,6 +32,8 @@ import { TierAssignment } from '../entities/tier-assignment.entity';
 import { SpecificityAssignment } from '../entities/specificity-assignment.entity';
 import { HeaderTier } from '../entities/header-tier.entity';
 import { InstallMetadata } from '../entities/install-metadata.entity';
+import { ContentGuardrailsController } from './content-guardrails/content-guardrails.controller';
+import { ContentGuardrailsModule } from './content-guardrails/content-guardrails.module';
 
 @Module({
   imports: [
@@ -52,6 +54,7 @@ import { InstallMetadata } from '../entities/install-metadata.entity';
     NotificationsModule,
     OtlpModule,
     ProxyModule,
+    ContentGuardrailsModule,
     OAuthModule,
     CustomProviderModule,
     ResolveModule,
@@ -69,6 +72,7 @@ import { InstallMetadata } from '../entities/install-metadata.entity';
     TenantProvidersController,
     AgentEnabledProvidersController,
     ManagedFreeProviderController,
+    ContentGuardrailsController,
   ],
   providers: [OllamaSyncService, ManagedFreeProviderService],
   exports: [RoutingCoreModule, CustomProviderModule, OAuthModule, SubscriptionQuotaModule],

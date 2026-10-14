@@ -29,10 +29,12 @@ import { ModelsDevReasoningCatalog } from './reasoning-model-catalog';
 import { CodexSessionAffinity } from './codex-session-affinity';
 import { ProxyExceptionFilter } from './proxy-exception.filter';
 import { AttemptRecordingService } from './attempt-recording.service';
+import { ContentGuardrailsModule } from '../content-guardrails/content-guardrails.module';
 
 @Module({
   imports: [
     TypeOrmModule.forFeature([AgentMessage, CustomProvider, ReasoningContentCacheEntry]),
+    ContentGuardrailsModule,
     RoutingCoreModule,
     ModelPricesModule,
     ModelDiscoveryModule,

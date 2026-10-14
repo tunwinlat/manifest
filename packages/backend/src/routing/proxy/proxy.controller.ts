@@ -68,6 +68,7 @@ import { PlanService } from '../../billing/plan.service';
 import { StreamFailure } from './stream-writer';
 import { AgentRecordingConfigService } from '../../common/services/agent-recording-config.service';
 import { AttemptRecordingService } from './attempt-recording.service';
+import { ContentGuardrailService } from '../content-guardrails/content-guardrail.service';
 import {
   createAttemptRecordingCapture,
   recordingResponseFromText,
@@ -141,6 +142,7 @@ export class ProxyController {
     private readonly observationReporter: ObservationReporter,
     private readonly providerParamSpecs: ProviderParamSpecService,
     private readonly modelsDevSync: ModelsDevSyncService,
+    private readonly contentGuardrails: ContentGuardrailService,
     @Optional()
     private readonly recordingConfig?: AgentRecordingConfigService,
     @Optional()
@@ -388,6 +390,9 @@ export class ProxyController {
       this.rateLimiter.checkIpLimit(req.ip ?? '');
       this.rateLimiter.acquireSlot(tenantId);
       slotAcquired = true;
+      // Inspect the caller's original request before any adapter mutates it
+      // or a provider is contacted. A block throws M205.
+      await this.contentGuardrails.checkRequest(req.ingestionContext.agentId, body);
       routingBody = redactInlineImageDataUrls(this.routingBody(body, req));
       const specificityOverride = req.headers['x-manifest-specificity'] as string | undefined;
       const { forward, meta, failedFallbacks, autofix } = await this.proxyService.proxyRequest({
@@ -522,6 +527,8 @@ export class ProxyController {
           apiMode,
           this.reasoningCache,
           responseCapture,
+          (responseBody) =>
+            void this.contentGuardrails.auditResponse(req.ingestionContext.agentId, responseBody),
         );
       }
 

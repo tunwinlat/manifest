@@ -47,6 +47,10 @@ export class Agent {
   @Column('boolean', { default: false })
   is_playground!: boolean;
 
+  /** Per-agent text safety policy. Null keeps existing harnesses opt-in by default. */
+  @Column('jsonb', { nullable: true })
+  content_guardrails!: object | null;
+
   @ManyToOne(() => Tenant, (t) => t.agents, { onDelete: 'CASCADE' })
   @JoinColumn({ name: 'tenant_id' })
   tenant!: Tenant;

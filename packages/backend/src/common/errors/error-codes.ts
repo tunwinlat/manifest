@@ -63,6 +63,10 @@ export const MANIFEST_ERRORS = {
       "You've used all {threshold} requests included this month on the Free plan. " +
       'Upgrade to Pro for unlimited requests: {upgradeUrl}',
   },
+  M205: {
+    title: 'Content blocked by guardrail',
+    template: "This request or response was blocked by this harness's content guardrail.",
+  },
   M300: {
     title: 'Missing messages array',
     template: '`messages` array is required.',
