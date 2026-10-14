@@ -245,7 +245,7 @@ describe('getSubscriptionProviderConfig', () => {
 
   it('publishes the curated xai subscription models', () => {
     const config = getSubscriptionProviderConfig('xai');
-    expect(config?.knownModels).toEqual(['grok-4.6', 'grok-4.5']);
+    expect(config?.knownModels).toEqual(['grok-4.7', 'grok-4.6', 'grok-4.5']);
   });
 
   it('returns config for gemini', () => {
@@ -258,15 +258,17 @@ describe('getSubscriptionProviderConfig', () => {
     });
     expect(config?.knownModels).toEqual(
       expect.arrayContaining([
+        'gemini-3.5-flash',
         'gemini-3.1-flash-lite',
-        'gemini-3.1-flash-lite-preview',
         'gemini-2.5-pro',
         'gemini-2.5-flash',
         'gemini-2.5-flash-lite',
       ]),
     );
+    expect(config?.knownModels).not.toContain('gemini-3.1-flash-lite-preview');
     expect(config?.knownModels).not.toContain('gemini-3.1-pro-preview');
     expect(config?.knownModels).not.toContain('gemini-3-flash-preview');
+    expect(config?.knownModels).not.toContain('gemini-3.6-flash');
     expect(config?.subscriptionCapabilities).toMatchObject({
       maxContextWindow: 1000000,
       supportsPromptCaching: true,
@@ -334,15 +336,26 @@ describe('getSubscriptionKnownModels', () => {
     expect(models).not.toContain('claude-sonnet-4');
     // claude-sonnet-5 (launched 2026-06-30) is served on the Claude plan.
     expect(models).toContain('claude-sonnet-5');
+    // Opus 5.5 is a point release addressed directly by callers.
     expect(models).toContain('claude-opus-5-5');
     expect(models).toContain('claude-sonnet-5-5');
+    expect(models).toContain('claude-haiku-5-5');
   });
 
   it('returns the curated ChatGPT plan models for OpenAI', () => {
     const models = getSubscriptionKnownModels('openai');
     expect(models).toEqual(
-      expect.arrayContaining(['gpt-5.6-sol', 'gpt-5.6-terra', 'gpt-5.6-luna']),
+      expect.arrayContaining([
+        'gpt-6-astra',
+        'gpt-6.1-sol',
+        'gpt-6-sol',
+        'gpt-6-luna',
+        'gpt-5.6-sol',
+        'gpt-5.6-terra',
+        'gpt-5.6-luna',
+      ]),
     );
+    expect(models).not.toContain('gpt-6-luna-pro');
     expect(models).not.toContain('gpt-5.6-sol-pro');
     expect(models).not.toContain('gpt-5.6-terra-pro');
     expect(models).not.toContain('gpt-5.6-luna-pro');
@@ -427,18 +440,20 @@ describe('getSubscriptionKnownModels', () => {
 
   it('returns known models for gemini', () => {
     const models = getSubscriptionKnownModels('gemini');
+    expect(models).toContain('gemini-3.5-flash');
     expect(models).toContain('gemini-3.1-flash-lite');
-    expect(models).toContain('gemini-3.1-flash-lite-preview');
     expect(models).toContain('gemini-2.5-pro');
     expect(models).toContain('gemini-2.5-flash');
     expect(models).toContain('gemini-2.5-flash-lite');
+    expect(models).not.toContain('gemini-3.1-flash-lite-preview');
     expect(models).not.toContain('gemini-3.1-pro-preview');
     expect(models).not.toContain('gemini-3-flash-preview');
+    expect(models).not.toContain('gemini-3.6-flash');
   });
 
   it('returns known models for xai', () => {
     const models = getSubscriptionKnownModels('xai');
-    expect(models).toEqual(['grok-4.6', 'grok-4.5']);
+    expect(models).toEqual(['grok-4.7', 'grok-4.6', 'grok-4.5']);
   });
 
   it('returns null for unsupported providers', () => {
@@ -516,6 +531,10 @@ describe('getSubscriptionCapabilities', () => {
       supportsBatching: false,
     });
     expect(caps?.modelContextWindows).toMatchObject({
+      'gpt-6-astra': 1050000,
+      'gpt-6.1-sol': 1050000,
+      'gpt-6-sol': 1050000,
+      'gpt-6-luna': 1050000,
       'gpt-5.6-sol': 1050000,
       'gpt-5.6-terra': 1050000,
       'gpt-5.6-luna': 1050000,

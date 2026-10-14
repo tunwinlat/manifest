@@ -37,6 +37,13 @@ import type { SpecificityAssignment } from '../../entities/specificity-assignmen
 interface ResolvedRouteChain {
   primaryRoute: ModelRoute | null;
   fallbackRoutes: ModelRoute[] | null;
+  /**
+   * The model named by a pinned override that could not be resolved even
+   * though its own provider connection exists. Surfaces M302 at the proxy
+   * instead of the neutral M101, which misreads a missing model as missing
+   * configuration.
+   */
+  unavailableOverrideModel: string | null;
 }
 
 /**
@@ -74,6 +81,9 @@ export class ResolveService {
     // fresh without a cross-module dependency (which would cycle).
     this.routingCache.addInvalidationListener((agentId) =>
       this.discoveryService.invalidate(agentId),
+    );
+    this.routingCache.addTenantInvalidationListener((tenantId) =>
+      this.discoveryService.invalidateTenant(tenantId),
     );
   }
 
@@ -182,6 +192,7 @@ export class ResolveService {
         confidence: result.confidence,
         score: result.score,
         reason: result.reason,
+        override_model_unavailable: routeChain.unavailableOverrideModel ?? undefined,
       };
     }
 
@@ -242,6 +253,13 @@ export class ResolveService {
       confidence: 1,
       score: 0,
       reason,
+      // Heartbeats are keep-alives, not routed chat. Keep their existing
+      // neutral M101 so an unavailable simple-tier override can't repaint
+      // every periodic heartbeat as a model-not-available response.
+      override_model_unavailable:
+        effectiveRoutes.primaryRoute || reason === 'heartbeat'
+          ? undefined
+          : (routeChain.unavailableOverrideModel ?? undefined),
     };
   }
 
@@ -482,6 +500,14 @@ export class ResolveService {
     const autoAssigned = readAutoAssignedRoute(assignment);
 
     let overrideAvailable = false;
+    // A configured override whose model the connection no longer offers still
+    // gets a fallback/auto route below. When none of those has credentials,
+    // name the override model so the proxy can return M302: M101 ("no providers
+    // are set up") misreads a model that is missing at this client version as
+    // missing configuration. Only flag it when the override's own connection
+    // exists, so a genuinely unconfigured agent keeps the neutral M101 (#2494).
+    // A quota-skipped override is not flagged: its model still exists.
+    let unavailableOverrideModel: string | null = null;
     if (override) {
       overrideAvailable = await this.providerKeyService.isRouteAvailable(
         tenantId,
@@ -496,6 +522,7 @@ export class ResolveService {
         return {
           primaryRoute: await this.enrichRouteKeyLabel(agentId, tenantId, override),
           fallbackRoutes: keptFallbacks && keptFallbacks.length > 0 ? keptFallbacks : null,
+          unavailableOverrideModel: null,
         };
       }
       this.logger.warn(
@@ -505,6 +532,12 @@ export class ResolveService {
           : `Override ${override.model} unavailable for agent=${agentId} — ` +
               `falling back to configured routes`,
       );
+      if (
+        !overrideAvailable &&
+        (await this.providerKeyService.hasRouteCredentials(tenantId, override, agentId))
+      ) {
+        unavailableOverrideModel = override.model;
+      }
     }
 
     // An orphaned or quota-skipped override walks its fallbacks before the
@@ -529,19 +562,29 @@ export class ResolveService {
         return {
           primaryRoute: await this.enrichRouteKeyLabel(agentId, tenantId, override),
           fallbackRoutes: fallbackRoutes && fallbackRoutes.length > 0 ? fallbackRoutes : null,
+          unavailableOverrideModel: null,
         };
       }
-      return this.promoteFirstWithCredentials(candidates, agentId, tenantId);
+      return this.promoteFirstWithCredentials(
+        candidates,
+        agentId,
+        tenantId,
+        unavailableOverrideModel,
+      );
     }
 
-    return this.promoteFirstWithCredentials(promotable, agentId, tenantId);
+    return this.promoteFirstWithCredentials(promotable, agentId, tenantId, unavailableOverrideModel);
   }
 
-  /** Promote the first candidate with live credentials to primary. */
+  /**
+   * Promote the first candidate with live credentials to primary. When none
+   * has credentials, report `unavailableOverrideModel` so the proxy can name it.
+   */
   private async promoteFirstWithCredentials(
     routes: ModelRoute[],
     agentId: string,
     tenantId: string,
+    unavailableOverrideModel: string | null = null,
   ): Promise<ResolvedRouteChain> {
     for (let i = 0; i < routes.length; i++) {
       if (await this.providerKeyService.hasRouteCredentials(tenantId, routes[i], agentId)) {
@@ -549,10 +592,11 @@ export class ResolveService {
         return {
           primaryRoute: await this.enrichRouteKeyLabel(agentId, tenantId, routes[i]),
           fallbackRoutes: rest.length > 0 ? rest : null,
+          unavailableOverrideModel: null,
         };
       }
     }
-    return { primaryRoute: null, fallbackRoutes: null };
+    return { primaryRoute: null, fallbackRoutes: null, unavailableOverrideModel };
   }
 
   /**

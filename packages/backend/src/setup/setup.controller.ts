@@ -18,6 +18,7 @@ export class SetupController {
     localLlmHost: string;
     emailConfigured: boolean;
     privacyMode: boolean;
+    mcpEnabled: boolean;
   }> {
     const selfHosted = this.setupService.isSelfHosted();
     const ollamaAvailable = selfHosted ? await this.setupService.isOllamaAvailable() : false;
@@ -29,6 +30,7 @@ export class SetupController {
       localLlmHost: this.setupService.getLocalLlmHost(),
       emailConfigured: this.setupService.isEmailConfigured(),
       privacyMode: isPrivacyMode(),
+      mcpEnabled: this.setupService.isMcpEnabled(),
     };
   }
 

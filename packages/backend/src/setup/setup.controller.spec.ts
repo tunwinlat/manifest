@@ -15,6 +15,7 @@ describe('SetupController', () => {
   let mockIsOllamaAvailable: jest.Mock;
   let mockGetLocalLlmHost: jest.Mock;
   let mockIsEmailConfigured: jest.Mock;
+  let mockIsMcpEnabled: jest.Mock;
 
   beforeEach(async () => {
     mockNeedsSetup = jest.fn();
@@ -24,6 +25,7 @@ describe('SetupController', () => {
     mockIsOllamaAvailable = jest.fn().mockResolvedValue(false);
     mockGetLocalLlmHost = jest.fn().mockReturnValue('localhost');
     mockIsEmailConfigured = jest.fn().mockReturnValue(true);
+    mockIsMcpEnabled = jest.fn().mockReturnValue(true);
 
     const module: TestingModule = await Test.createTestingModule({
       controllers: [SetupController],
@@ -38,6 +40,7 @@ describe('SetupController', () => {
             isOllamaAvailable: mockIsOllamaAvailable,
             getLocalLlmHost: mockGetLocalLlmHost,
             isEmailConfigured: mockIsEmailConfigured,
+            isMcpEnabled: mockIsMcpEnabled,
           },
         },
       ],
@@ -47,6 +50,13 @@ describe('SetupController', () => {
   });
 
   describe('getStatus', () => {
+    it('reports mcpEnabled=false when the install runs without the MCP server', async () => {
+      mockNeedsSetup.mockResolvedValue(false);
+      mockIsMcpEnabled.mockReturnValue(false);
+      const result = await controller.getStatus();
+      expect(result.mcpEnabled).toBe(false);
+    });
+
     it('returns needsSetup=true with empty socialProviders in cloud mode', async () => {
       mockNeedsSetup.mockResolvedValue(true);
       const result = await controller.getStatus();
@@ -58,6 +68,7 @@ describe('SetupController', () => {
         localLlmHost: 'localhost',
         emailConfigured: true,
         privacyMode: false,
+        mcpEnabled: true,
       });
     });
 
@@ -72,6 +83,7 @@ describe('SetupController', () => {
         localLlmHost: 'localhost',
         emailConfigured: true,
         privacyMode: false,
+        mcpEnabled: true,
       });
     });
 
@@ -87,6 +99,7 @@ describe('SetupController', () => {
         localLlmHost: 'localhost',
         emailConfigured: true,
         privacyMode: false,
+        mcpEnabled: true,
       });
     });
 
@@ -103,6 +116,7 @@ describe('SetupController', () => {
         localLlmHost: 'localhost',
         emailConfigured: true,
         privacyMode: false,
+        mcpEnabled: true,
       });
     });
 
@@ -119,6 +133,7 @@ describe('SetupController', () => {
         localLlmHost: 'localhost',
         emailConfigured: true,
         privacyMode: false,
+        mcpEnabled: true,
       });
     });
 
