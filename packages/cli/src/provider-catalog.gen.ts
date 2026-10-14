@@ -280,7 +280,7 @@ export const SETUP_TEMPLATES: Readonly<Record<string, string>> = {
   openclaw:
     'openclaw config set models.providers.manifest \'{"baseUrl":"{{ORIGIN}}/v1","api":"openai-completions","apiKey":"{{API_KEY}}","models":[{"id":"auto","name":"Manifest Auto"}]}\'\nopenclaw config set agents.defaults.model.primary manifest/auto\nopenclaw gateway restart',
   'claude-code':
-    '{\n  "model": "auto",\n  "env": {\n    "ANTHROPIC_BASE_URL": "{{ORIGIN}}",\n    "ANTHROPIC_AUTH_TOKEN": "{{API_KEY}}"\n  }\n}',
+    '{\n  "model": "auto",\n  "env": {\n    "ANTHROPIC_BASE_URL": "{{ORIGIN}}",\n    "ANTHROPIC_AUTH_TOKEN": "{{API_KEY}}",\n    "ANTHROPIC_DEFAULT_SONNET_MODEL": "auto",\n    "ANTHROPIC_DEFAULT_HAIKU_MODEL": "auto",\n    "ANTHROPIC_DEFAULT_OPUS_MODEL": "auto"\n  }\n}',
   nanobot:
     '{\n  "agents": {\n    "defaults": {\n      "provider": "custom",\n      "model": "auto"\n    }\n  },\n  "providers": {\n    "custom": {\n      "apiKey": "{{API_KEY}}",\n      "apiBase": "{{ORIGIN}}/v1"\n    }\n  }\n}',
   codex:

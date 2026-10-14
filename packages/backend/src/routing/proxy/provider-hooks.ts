@@ -77,8 +77,10 @@ export function buildProviderExtraHeaders(
   // `opencodego` → `opencode-go`) hit the same builder as their canonical id.
   const lower = provider.toLowerCase();
   const canonical = PROVIDER_BY_ID_OR_ALIAS.get(lower)?.id ?? lower;
+  // Own keys only: a provider named `constructor` or `toString` must not reach
+  // an Object.prototype method.
+  if (!Object.hasOwn(PROVIDER_EXTRA_HEADER_BUILDERS, canonical)) return undefined;
   const builder = PROVIDER_EXTRA_HEADER_BUILDERS[canonical];
-  if (!builder) return undefined;
   return builder({
     sessionKey: providerCacheKey ? buildProviderPromptCacheKey(providerCacheKey) : undefined,
     agentKey: agentScopeKey ? buildProviderPromptCacheKey(agentScopeKey) : undefined,

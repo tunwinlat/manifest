@@ -1058,6 +1058,13 @@ describe('gemini-subscription endpoint', () => {
 });
 
 describe('buildProviderExtraHeaders', () => {
+  it.each(['constructor', 'toString', '__proto__', 'hasOwnProperty'])(
+    'returns undefined for a provider named after an Object.prototype member (%s)',
+    (provider) => {
+      expect(buildProviderExtraHeaders(provider, 'sess-abc', 'agent-1')).toBeUndefined();
+    },
+  );
+
   it('returns x-grok-conv-id for xai', () => {
     expect(buildProviderExtraHeaders('xai', 'sess-abc')).toEqual({
       'x-grok-conv-id': expect.stringMatching(/^manifest-[a-f0-9]{32}$/),
