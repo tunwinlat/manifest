@@ -2,6 +2,20 @@
 
 Last updated: 2026-09-14
 
+## This Fork (tunwinlat/manifest)
+
+This repo is a fork of [`mnfst/llm-gateway`](https://github.com/mnfst/llm-gateway) (remote `upstream`) that goes its own way. Upstream is merged in periodically; **fork features win every conflict** and must keep working after a merge. Fork-only behaviour:
+
+- **Strict privacy mode** (`MANIFEST_PRIVACY_MODE`, `common/utils/privacy-mode.ts`): no Manifest-operated reporting, hosted product flows, promos, or public catalog refreshes. Every outbound call outside provider traffic checks `isPrivacyMode()` (pricing, models.dev, modelparams.dev, free models, OpenCode Go catalog, GitHub stars, discovery, telemetry, update check). The dashboard hides upstream product promos (API Bot banner/card) in privacy mode. **After a merge, audit new outbound calls against this list.**
+- **Local Autofix** (`AUTOFIX_HEALING_MODE=local|hosted`, `routing/autofix/`): in-process healer for self-hosted installs.
+- **Deterministic request fixes** (`routing/proxy/deterministic-request-fixes.ts`): model-specific corrections upstream moved to hosted Autofix (#2782) stay in the proxy here (Haiku adaptive thinking, adaptive `budget_tokens`, Sonnet `xhigh` effort, `reasoning_content` strip, DeepSeek `max_tokens` clamp). Kept in a fork-owned module so upstream's adapters stay mergeable.
+- **Quota-aware skip** (`skipWhenQuotaExhausted` on routes): per-route toggle to skip subscription routes whose quota is exhausted (`resolve.service.ts`, header tiers, `FallbackList.tsx`).
+- **Model catalog policy**: the Anthropic subscription list is exact-match, real IDs only; stored routes upgrade to newer compatible model variants (`common/utils/model-version-family.ts`). Claude Code snippets pin Sonnet/Haiku/Opus defaults to `auto`.
+- **Anthropic Reconnect**: re-sign-in replaces an existing subscription connection's credential in place (`reconnectLabel` on the OAuth exchange).
+- **Content guardrails** (M205, `routing/content-guardrails/`, Limits/Guardrails page): per-agent blocked phrases and PII detection on requests; responses are log-only.
+- **Releases**: the fork's own `release.yml` (GHCR + GitHub Releases). Upstream's npm/Docker Hub publishing workflows are not used.
+- **Migration timestamps**: `1802100000000` is used by both the fork (`AddContentGuardrails`) and upstream (`AddCustomProviderAlias`). TypeORM tracks migrations by name, so both run once; never rename an applied migration.
+
 ## What Manifest Is
 
 Manifest is a smart model router for **AI agents**. It sits between an agent and its LLM providers, scores each request, and routes it to the cheapest model that can handle it. The dashboard tracks logical requests and their provider attempts, costs, and tokens across any agent that speaks OpenAI-compatible HTTP.
