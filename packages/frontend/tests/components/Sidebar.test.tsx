@@ -43,9 +43,10 @@ let mockIsSelfHosted = true;
 // MCP is on by default; an install served over plain HTTP runs without it and
 // the nav entry goes with it.
 let mockMcpEnabled = true;
+let mockPrivacyMode = false;
 vi.mock("../../src/services/setup-status.js", () => ({
   checkIsSelfHosted: () => Promise.resolve(mockIsSelfHosted),
-  checkPrivacyMode: () => false,
+  checkPrivacyMode: () => Promise.resolve(mockPrivacyMode),
   checkMcpEnabled: () => Promise.resolve(mockMcpEnabled),
 }));
 
@@ -76,6 +77,7 @@ beforeEach(() => {
   sessionStorage.clear();
   vi.clearAllMocks();
   mockPathname = "/overview";
+  mockPrivacyMode = false;
   mockIsSelfHosted = true;
   mockGetBillingStatus.mockResolvedValue({
     enabled: false,
@@ -430,5 +432,13 @@ describe("Sidebar — API Bot announcement card", () => {
     const { container } = render(() => <Sidebar />);
     await screen.findByText("Meet API Bot");
     expect(container.querySelector(".sidebar-api-bot")).not.toBeNull();
+  });
+
+  it("hides the API Bot card in privacy mode", async () => {
+    mockPrivacyMode = true;
+    const { container } = render(() => <Sidebar />);
+    await screen.findByText("Playground");
+    await new Promise((r) => setTimeout(r, 0));
+    expect(container.querySelector(".sidebar-api-bot")).toBeNull();
   });
 });

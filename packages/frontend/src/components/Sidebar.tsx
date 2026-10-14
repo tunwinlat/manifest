@@ -2,7 +2,7 @@ import { A, useLocation } from '@solidjs/router';
 import { Show, createSignal, createResource, type Component } from 'solid-js';
 import { getBillingStatus } from '../services/api/billing.js';
 import { FREE_REQUEST_LIMIT_LABEL } from '../services/billing-display.js';
-import { checkIsSelfHosted, checkMcpEnabled } from '../services/setup-status.js';
+import { checkIsSelfHosted, checkMcpEnabled, checkPrivacyMode } from '../services/setup-status.js';
 import AddAgentModal from './AddAgentModal.jsx';
 import ApiBotAnnouncement from './ApiBotAnnouncement.jsx';
 
@@ -34,6 +34,8 @@ const Sidebar: Component<SidebarProps> = (props) => {
   // status like the Local one does, rather than appearing and then vanishing
   // on the installs that don't have it.
   const [mcpEnabled] = createResource(checkMcpEnabled);
+  // Fork: hosted-product promos stay off in privacy mode.
+  const [privacyMode] = createResource(checkPrivacyMode);
   const [billing] = createResource(async () => {
     try {
       return await getBillingStatus();
@@ -173,9 +175,11 @@ const Sidebar: Component<SidebarProps> = (props) => {
 
       <div class="sidebar__spacer" />
 
-      {/* API Bot announcement: shows for everyone in every deployment mode,
-          with a per-session dismiss. Links to manifest.build/api-bot/. */}
-      <ApiBotAnnouncement />
+      {/* API Bot announcement: per-session dismiss, links to
+          manifest.build/api-bot/. Hidden in privacy mode (fork). */}
+      <Show when={privacyMode() === false}>
+        <ApiBotAnnouncement />
+      </Show>
 
       <Show when={!selfHosted() && showUpgrade()}>
         <div class="sidebar-usage">
