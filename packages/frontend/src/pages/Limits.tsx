@@ -208,8 +208,6 @@ const Limits: Component = () => {
         </button>
       </div>
 
-      <LimitsContentGuardrailsSection agentName={agentName} />
-
       <Show when={blockRulesExceeded()}>
         <div class="limits-warning-banner" role="alert">
           <svg
@@ -294,6 +292,8 @@ const Limits: Component = () => {
           <LimitHistoryTable logs={logs()} loading={false} />
         </div>
       </Show>
+
+      <LimitsContentGuardrailsSection agentName={agentName} />
 
       <KebabMenu
         openMenuId={openMenuId()}

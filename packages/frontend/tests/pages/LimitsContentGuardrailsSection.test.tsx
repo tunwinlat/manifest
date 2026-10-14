@@ -29,12 +29,13 @@ const stored = {
 async function renderLoaded(agent = 'agent-a') {
   const [agentName, setAgentName] = createSignal(agent);
   const result = render(() => <LimitsContentGuardrailsSection agentName={agentName} />);
-  await screen.findByRole('form', { name: 'Content guardrails' });
+  await screen.findByRole('switch', { name: 'Check request content' });
   return { ...result, setAgentName };
 }
 
+const sw = (name: string) => screen.getByRole('switch', { name });
 const phrasesBox = () => screen.getByLabelText(/Blocked phrases/) as HTMLTextAreaElement;
-const save = () => fireEvent.click(screen.getByRole('button', { name: 'Save guardrails' }));
+const saveBtn = () => screen.getByRole('button', { name: 'Save changes' }) as HTMLButtonElement;
 
 describe('parseBlockedPhrases', () => {
   it('splits lines, trims and drops blanks', () => {
@@ -49,79 +50,91 @@ describe('LimitsContentGuardrailsSection', () => {
   });
   afterEach(() => cleanup());
 
-  it('shows the stored config', async () => {
+  it('shows the stored config with nothing to save yet', async () => {
     await renderLoaded();
     expect(mockGet.mock.calls[0][0]).toBe('agent-a');
-    expect((screen.getByLabelText(/Enable content guardrails/) as HTMLInputElement).checked).toBe(
-      true,
-    );
-    expect((screen.getByLabelText(/Detect common personal data/) as HTMLInputElement).checked).toBe(
-      false,
-    );
+    expect(screen.getByRole('heading', { name: 'Content guardrails' })).toBeTruthy();
+    expect(sw('Check request content').getAttribute('aria-checked')).toBe('true');
+    expect(sw('Detect personal data').getAttribute('aria-checked')).toBe('false');
+    expect(sw('Log matches in responses').getAttribute('aria-checked')).toBe('true');
     expect(phrasesBox().value).toBe('alpha\nbeta');
-    expect((screen.getByLabelText(/When a request matches/) as HTMLSelectElement).value).toBe(
-      'audit',
+    expect(screen.getByRole('button', { name: 'When a request matches' }).textContent).toContain(
+      'Allow it and log the match',
     );
-    expect((screen.getByLabelText(/Log matches in responses/) as HTMLInputElement).checked).toBe(
-      true,
-    );
+    expect(saveBtn().disabled).toBe(true);
   });
 
-  it('saves the edited form as a full config', async () => {
-    const saved = { ...stored, enabled: false, detect_pii: true, blocked_phrases: ['gamma'] };
+  it('saves the edited settings as a full config', async () => {
+    const saved = {
+      enabled: false,
+      detect_pii: true,
+      blocked_phrases: ['gamma'],
+      request_action: 'block' as const,
+      audit_responses: false,
+    };
     mockUpdate.mockResolvedValue({ config: saved });
     await renderLoaded();
 
-    fireEvent.click(screen.getByLabelText(/Enable content guardrails/));
-    fireEvent.click(screen.getByLabelText(/Detect common personal data/));
-    fireEvent.click(screen.getByLabelText(/Log matches in responses/));
+    fireEvent.click(sw('Check request content'));
+    fireEvent.click(sw('Detect personal data'));
+    fireEvent.click(sw('Log matches in responses'));
     fireEvent.input(phrasesBox(), { target: { value: ' gamma \n\n' } });
-    fireEvent.change(screen.getByLabelText(/When a request matches/), {
-      target: { value: 'block' },
-    });
-    save();
+    fireEvent.click(screen.getByRole('button', { name: 'When a request matches' }));
+    fireEvent.click(await screen.findByRole('option', { name: /Block the request/ }));
+    expect(sw('Check request content').getAttribute('aria-checked')).toBe('false');
+    expect(saveBtn().disabled).toBe(false);
+    fireEvent.click(saveBtn());
 
-    await waitFor(() =>
-      expect(mockUpdate).toHaveBeenCalledWith('agent-a', {
-        enabled: false,
-        detect_pii: true,
-        blocked_phrases: ['gamma'],
-        request_action: 'block',
-        audit_responses: false,
-      }),
-    );
+    await waitFor(() => expect(mockUpdate).toHaveBeenCalledWith('agent-a', saved));
     await waitFor(() => expect(mockToastSuccess).toHaveBeenCalledWith('Content guardrails saved'));
     expect(phrasesBox().value).toBe('gamma');
+    expect(saveBtn().disabled).toBe(true);
   });
 
-  it('rejects too many phrases without calling the API', async () => {
+  it('can switch the request action back to logging', async () => {
+    mockGet.mockResolvedValue({ ...stored, request_action: 'block' });
+    mockUpdate.mockResolvedValue({ config: stored });
+    await renderLoaded();
+    fireEvent.click(screen.getByRole('button', { name: 'When a request matches' }));
+    fireEvent.click(await screen.findByRole('option', { name: /Allow it and log/ }));
+    fireEvent.click(saveBtn());
+    await waitFor(() =>
+      expect(mockUpdate).toHaveBeenCalledWith(
+        'agent-a',
+        expect.objectContaining({ request_action: 'audit' }),
+      ),
+    );
+  });
+
+  it('rejects too many phrases without calling the API, and clears the error on edit', async () => {
     await renderLoaded();
     fireEvent.input(phrasesBox(), {
       target: { value: Array.from({ length: 101 }, (_, i) => `p${i}`).join('\n') },
     });
-    save();
+    fireEvent.click(saveBtn());
     expect((await screen.findByRole('alert')).textContent).toContain('at most 100 blocked phrases');
     expect(mockUpdate).not.toHaveBeenCalled();
+
+    fireEvent.input(phrasesBox(), { target: { value: 'ok' } });
+    expect(screen.queryByRole('alert')).toBeNull();
   });
 
   it('rejects an over-long phrase without calling the API', async () => {
     await renderLoaded();
     fireEvent.input(phrasesBox(), { target: { value: 'x'.repeat(201) } });
-    save();
+    fireEvent.click(saveBtn());
     expect((await screen.findByRole('alert')).textContent).toContain('200 characters or fewer');
     expect(mockUpdate).not.toHaveBeenCalled();
   });
 
-  it('leaves the form as-is when the save fails (fetchMutate toasts the error)', async () => {
+  it('keeps the edits when the save fails (fetchMutate toasts the error)', async () => {
     mockUpdate.mockRejectedValue(new Error('nope'));
     await renderLoaded();
-    save();
+    fireEvent.click(sw('Detect personal data'));
+    fireEvent.click(saveBtn());
     await waitFor(() => expect(mockUpdate).toHaveBeenCalled());
-    await waitFor(() =>
-      expect(
-        (screen.getByRole('button', { name: 'Save guardrails' }) as HTMLButtonElement).disabled,
-      ).toBe(false),
-    );
+    await waitFor(() => expect(saveBtn().disabled).toBe(false));
+    expect(sw('Detect personal data').getAttribute('aria-checked')).toBe('true');
     expect(mockToastSuccess).not.toHaveBeenCalled();
   });
 
@@ -129,7 +142,8 @@ describe('LimitsContentGuardrailsSection', () => {
     let resolveSave!: (v: unknown) => void;
     mockUpdate.mockReturnValue(new Promise((r) => (resolveSave = r)));
     const { setAgentName } = await renderLoaded('agent-a');
-    save();
+    fireEvent.click(sw('Detect personal data'));
+    fireEvent.click(saveBtn());
     await waitFor(() => expect(mockUpdate).toHaveBeenCalledWith('agent-a', expect.anything()));
 
     mockGet.mockResolvedValue({ ...stored, blocked_phrases: ['agent-b phrase'] });
@@ -141,12 +155,12 @@ describe('LimitsContentGuardrailsSection', () => {
     expect(phrasesBox().value).toBe('agent-b phrase');
   });
 
-  it('shows a load error instead of a form', async () => {
+  it('shows a load error instead of the settings', async () => {
     mockGet.mockRejectedValue(new Error('500'));
     render(() => <LimitsContentGuardrailsSection agentName={() => 'agent-a'} />);
     expect((await screen.findByRole('alert')).textContent).toContain(
       "Couldn't load content guardrails",
     );
-    expect(screen.queryByRole('form')).toBeNull();
+    expect(screen.queryByRole('switch')).toBeNull();
   });
 });

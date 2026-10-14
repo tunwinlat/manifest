@@ -1951,6 +1951,16 @@
         "limits.css"
       ]
     },
+    "limits-guardrails": {
+      "classes": [
+        "limits-guardrails",
+        "limits-guardrails__error",
+        "limits-guardrails__footer"
+      ],
+      "files": [
+        "limits.css"
+      ]
+    },
     "limits-provider-hint": {
       "classes": [
         "limits-provider-hint"
@@ -3429,6 +3439,7 @@
         "settings-card__id-row",
         "settings-card__id-value",
         "settings-card__input",
+        "settings-card__input--multiline",
         "settings-card__key-actions",
         "settings-card__key-row",
         "settings-card__key-value",
@@ -3437,7 +3448,8 @@
         "settings-card__label-desc--meta",
         "settings-card__label-title",
         "settings-card__legal",
-        "settings-card__row"
+        "settings-card__row",
+        "settings-card__row--stacked"
       ],
       "files": [
         "agents.css",
@@ -5118,8 +5130,8 @@
   "stats": {
     "tokens": 79,
     "darkOverrides": 38,
-    "blocks": 318,
-    "classes": 1700,
+    "blocks": 319,
+    "classes": 1705,
     "canonicalRules": 46,
     "ghostRules": 46
   }

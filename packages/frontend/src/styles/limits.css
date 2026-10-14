@@ -235,3 +235,18 @@
   color: hsl(var(--foreground));
   line-height: 1.4;
 }
+
+/* ── Content guardrails section ──────────────────── */
+.limits-guardrails {
+  margin-top: var(--gap-xl);
+}
+
+.limits-guardrails__footer {
+  align-items: center;
+  gap: var(--gap-md);
+}
+
+.limits-guardrails__error {
+  font-size: var(--font-size-xs);
+  color: hsl(var(--destructive));
+}

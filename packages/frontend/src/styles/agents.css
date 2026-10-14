@@ -284,6 +284,22 @@
   cursor: default;
 }
 
+/* Multi-line variant: same chrome as the input, sized by rows. */
+.settings-card__input--multiline {
+  height: auto;
+  min-height: 5.5rem;
+  padding: var(--gap-sm) 0.75rem;
+  line-height: 1.5;
+  resize: vertical;
+}
+
+/* Label above a full-width control (e.g. a multi-line input). */
+.settings-card__row--stacked {
+  flex-direction: column;
+  align-items: stretch;
+  gap: var(--gap-sm);
+}
+
 .settings-card__footer {
   display: flex;
   justify-content: flex-end;
