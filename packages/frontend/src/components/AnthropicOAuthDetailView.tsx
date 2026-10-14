@@ -51,10 +51,15 @@ const AnthropicOAuthDetailView: Component<Props> = (props) => {
   const [renamingId, setRenamingId] = createSignal<string | null>(null);
   const [renameValue, setRenameValue] = createSignal('');
   const [addingAccount, setAddingAccount] = createSignal(false);
+  // Label of the connection being reconnected. The new token replaces that
+  // connection's credential in place, so its routing keeps working.
+  const [reconnectLabel, setReconnectLabel] = createSignal<string | null>(null);
 
   const isMultiKey = () => (props.activeKeys?.() ?? []).length > 1;
-  const showConnectFlow = () => !props.connected() || addingAccount();
-  const showConnectedFlow = () => props.connected() && !addingAccount();
+  const singleKeyLabel = () => props.activeKeys?.()[0]?.label;
+  const inFlowWhileConnected = () => addingAccount() || reconnectLabel() !== null;
+  const showConnectFlow = () => !props.connected() || inFlowWhileConnected();
+  const showConnectedFlow = () => props.connected() && !inFlowWhileConnected();
 
   // When "Add another key" is clicked in the header, launch a new OAuth popup.
   createEffect(() => {
@@ -84,7 +89,7 @@ const AnthropicOAuthDetailView: Component<Props> = (props) => {
     const popup = window.open('about:blank', '_blank');
     if (!popup) {
       toast.error('Popup was blocked by your browser. Allow popups for this site, then try again.');
-      if (props.connected()) setAddingAccount(false);
+      if (props.connected()) cancelAddAccount();
       return;
     }
     // The blank page is same-origin, so remove its access to the dashboard
@@ -98,7 +103,7 @@ const AnthropicOAuthDetailView: Component<Props> = (props) => {
       if (!popup.closed) popup.location.replace(url);
     } catch {
       popup.close();
-      if (props.connected()) setAddingAccount(false);
+      if (props.connected()) cancelAddAccount();
       // error toast from fetchMutate
     } finally {
       props.setBusy(false);
@@ -127,11 +132,14 @@ const AnthropicOAuthDetailView: Component<Props> = (props) => {
     setError(null);
     try {
       const authState = state() ?? pastedState;
-      await submitAnthropicOAuth(props.agentName, raw, authState);
-      toast.success(`${props.provDef.name} subscription connected`);
-      setAddingAccount(false);
-      setInput('');
-      setState(null);
+      const target = reconnectLabel() ?? undefined;
+      await submitAnthropicOAuth(props.agentName, raw, authState, target);
+      toast.success(
+        target
+          ? `${props.provDef.name} subscription "${target}" reconnected`
+          : `${props.provDef.name} subscription connected`,
+      );
+      cancelAddAccount();
       props.onUpdate();
     } catch (err) {
       setError(
@@ -146,9 +154,15 @@ const AnthropicOAuthDetailView: Component<Props> = (props) => {
 
   const cancelAddAccount = () => {
     setAddingAccount(false);
+    setReconnectLabel(null);
     setInput('');
     setError(null);
     setState(null);
+  };
+
+  const startReconnect = (label: string) => {
+    setReconnectLabel(label);
+    void handleSignIn();
   };
 
   const handleDisconnect = async () => {
@@ -220,10 +234,22 @@ const AnthropicOAuthDetailView: Component<Props> = (props) => {
     <>
       <Show when={showConnectFlow()}>
         <div class="anthropic-detail__primary">
-          <p class="provider-detail__hint">
-            Sign in with your Claude Pro or Max account. Manifest will route through your
-            subscription with auto-refreshing tokens.
-          </p>
+          <Show
+            when={reconnectLabel()}
+            fallback={
+              <p class="provider-detail__hint">
+                Sign in with your Claude Pro or Max account. Manifest will route through your
+                subscription with auto-refreshing tokens.
+              </p>
+            }
+          >
+            {(label) => (
+              <p class="provider-detail__hint">
+                Sign in again to replace the credentials for "{label()}". Routing that uses this
+                connection stays as it is.
+              </p>
+            )}
+          </Show>
           <button
             class="btn btn--primary anthropic-detail__btn"
             disabled={props.busy()}
@@ -268,11 +294,11 @@ const AnthropicOAuthDetailView: Component<Props> = (props) => {
             onClick={handleSubmit}
           >
             <Show when={!props.busy()} fallback={<span class="spinner" />}>
-              Connect
+              {reconnectLabel() ? 'Reconnect' : 'Connect'}
             </Show>
           </button>
         </div>
-        <Show when={addingAccount()}>
+        <Show when={inFlowWhileConnected()}>
           <button
             class="btn btn--outline provider-detail__action"
             disabled={props.busy()}
@@ -307,6 +333,15 @@ const AnthropicOAuthDetailView: Component<Props> = (props) => {
                               Connected via {props.provDef.subscriptionLabel ?? 'subscription'}
                             </div>
                           </div>
+                          <button
+                            class="btn btn--outline btn--sm"
+                            style="flex-shrink: 0;"
+                            disabled={props.busy()}
+                            onClick={() => startReconnect(k.label)}
+                            aria-label={`Reconnect account ${k.label}`}
+                          >
+                            Reconnect
+                          </button>
                           <button
                             class="btn btn--outline btn--sm"
                             style="flex-shrink: 0;"
@@ -390,6 +425,17 @@ const AnthropicOAuthDetailView: Component<Props> = (props) => {
               Connected via {props.provDef.subscriptionLabel ?? 'subscription'}
             </span>
           </div>
+          <Show when={singleKeyLabel()}>
+            {(label) => (
+              <button
+                class="btn btn--outline provider-detail__action"
+                disabled={props.busy()}
+                onClick={() => startReconnect(label())}
+              >
+                Reconnect
+              </button>
+            )}
+          </Show>
           <button
             class="btn btn--outline provider-detail__action provider-detail__disconnect"
             disabled={props.busy()}

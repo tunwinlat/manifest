@@ -125,12 +125,21 @@ export function startAnthropicOAuth(agentName: string) {
   );
 }
 
-export function submitAnthropicOAuth(agentName: string, payload: string, state: string) {
+/**
+ * `reconnectLabel` replaces the credential on that existing connection in
+ * place (keeping its routing) instead of adding a new connection.
+ */
+export function submitAnthropicOAuth(
+  agentName: string,
+  payload: string,
+  state: string,
+  reconnectLabel?: string,
+) {
   return fetchMutate<{ ok: boolean }>(
     `/oauth/anthropic/exchange?agentName=${encodeURIComponent(agentName)}`,
     {
       method: 'POST',
-      body: JSON.stringify({ code: payload, state }),
+      body: JSON.stringify({ code: payload, state, reconnectLabel }),
       headers: { 'Content-Type': 'application/json' },
     },
   );

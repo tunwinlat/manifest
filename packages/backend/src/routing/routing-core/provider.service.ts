@@ -358,6 +358,46 @@ export class ProviderService {
     return result;
   }
 
+  /**
+   * Resolve an existing, active subscription connection by label so a
+   * reconnect can target it. Returns the stored label (canonical casing).
+   * Checked before the OAuth code exchange so a stale label fails without
+   * burning the one-shot authorization code.
+   */
+  async findSubscriptionConnectionLabel(
+    tenantId: string,
+    provider: string,
+    label: string,
+  ): Promise<string> {
+    const wantedLabel = label.trim().toLowerCase();
+    const rows = await this.providerRepo.find({
+      where: { tenant_id: tenantId, provider, auth_type: 'subscription', is_active: true },
+    });
+    const row = rows.find((r) => r.label.toLowerCase() === wantedLabel);
+    if (!row) {
+      throw new NotFoundException(`No ${provider} subscription connection named "${label}"`);
+    }
+    return row.label;
+  }
+
+  /**
+   * Reconnect: swap the OAuth credential on an existing subscription row in
+   * place. The row keeps its id, label and priority, so routes pinned to it
+   * keep working, and per-agent enablement is left untouched. Written under
+   * the same row lock as token refresh so an in-flight refresh with the old
+   * (dead) token cannot overwrite the new one.
+   */
+  async replaceSubscriptionCredential(
+    tenantId: string,
+    provider: string,
+    label: string,
+    raw: string,
+  ): Promise<void> {
+    await this.withSubscriptionCredentialLock(tenantId, provider, label, (ops) =>
+      ops.writeRaw(raw),
+    );
+  }
+
   async upsertProvider(
     agentId: string | null,
     tenantId: string,

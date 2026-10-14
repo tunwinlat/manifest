@@ -30,8 +30,14 @@ function createProviderService() {
   const recalculateTiersForTenant = jest.fn().mockResolvedValue(undefined);
   const nextOAuthLabel = jest.fn().mockResolvedValue(undefined);
   const getFreshSubscriptionCredential = jest.fn().mockResolvedValue(null);
+  const findSubscriptionConnectionLabel = jest
+    .fn()
+    .mockImplementation(async (_t: string, _p: string, label: string) => label);
+  const replaceSubscriptionCredential = jest.fn().mockResolvedValue(undefined);
   return {
     svc: {
+      findSubscriptionConnectionLabel,
+      replaceSubscriptionCredential,
       upsertProvider,
       recalculateTiers,
       recalculateTiersForTenant,
@@ -42,6 +48,8 @@ function createProviderService() {
         upsertProvider,
       }),
     } as unknown as ProviderService,
+    findSubscriptionConnectionLabel,
+    replaceSubscriptionCredential,
     upsertProvider,
     recalculateTiers,
     recalculateTiersForTenant,
@@ -292,6 +300,55 @@ describe('AnthropicOauthService', () => {
         'Key 2',
         undefined,
       );
+    });
+
+    it('reconnect replaces the credential on the existing connection instead of adding one', async () => {
+      providerService.findSubscriptionConnectionLabel.mockResolvedValue('Default');
+      fetchMock.mockResolvedValue(
+        mockResponse(200, { access_token: 'a3', refresh_token: 'r3', expires_in: 60 }),
+      );
+      const { state } = await svc.generateAuthorizationUrl('agent-1', 'tenant-1');
+
+      await svc.exchangeCode(
+        `re-code#${state}`,
+        undefined,
+        'agent-1',
+        'tenant-1',
+        'user-1',
+        'default',
+      );
+
+      expect(providerService.findSubscriptionConnectionLabel).toHaveBeenCalledWith(
+        'tenant-1',
+        'anthropic',
+        'default',
+      );
+      expect(providerService.replaceSubscriptionCredential).toHaveBeenCalledWith(
+        'tenant-1',
+        'anthropic',
+        'Default',
+        expect.stringContaining('"t":"a3"'),
+      );
+      const stored = JSON.parse(providerService.replaceSubscriptionCredential.mock.calls[0][3]);
+      expect(stored.r).toBe('r3');
+      expect(providerService.nextOAuthLabel).not.toHaveBeenCalled();
+      expect(providerService.upsertProvider).not.toHaveBeenCalled();
+      expect(discovery.discoverModels).not.toHaveBeenCalled();
+    });
+
+    it('reconnect to a missing connection fails before consuming state or exchanging the code', async () => {
+      providerService.findSubscriptionConnectionLabel.mockRejectedValue(
+        new Error('No anthropic subscription connection named "Gone"'),
+      );
+      const { state } = await svc.generateAuthorizationUrl('agent-1', 'tenant-1');
+
+      await expect(
+        svc.exchangeCode(`code#${state}`, undefined, 'agent-1', 'tenant-1', 'user-1', 'Gone'),
+      ).rejects.toThrow('No anthropic subscription connection named "Gone"');
+
+      expect(fetchMock).not.toHaveBeenCalled();
+      expect(providerService.replaceSubscriptionCredential).not.toHaveBeenCalled();
+      await expect(svc.getPendingCount()).resolves.toBe(1);
     });
 
     it('falls back to the latest pending state when the client posts a bare code', async () => {

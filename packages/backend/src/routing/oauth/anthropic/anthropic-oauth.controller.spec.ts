@@ -1,4 +1,4 @@
-import { HttpException, HttpStatus } from '@nestjs/common';
+import { HttpException, HttpStatus, NotFoundException } from '@nestjs/common';
 import { AnthropicOauthController } from './anthropic-oauth.controller';
 import { AnthropicOauthExchangeError, AnthropicOauthService } from './anthropic-oauth.service';
 import { ResolveAgentService } from '../../routing-core/resolve-agent.service';
@@ -68,6 +68,7 @@ describe('AnthropicOauthController', () => {
         'agent-1',
         'tenant-1',
         'user-1',
+        undefined,
       );
     });
 
@@ -99,6 +100,44 @@ describe('AnthropicOauthController', () => {
       (oauth.exchangeCode as jest.Mock).mockRejectedValue('boom');
       await expect(ctrl.exchange('agent', 'code', 'state', ctx)).rejects.toThrow(
         'Token exchange failed',
+      );
+    });
+
+    it('passes a reconnect target label through to the service', async () => {
+      const { ctrl, oauth } = build();
+      (oauth.exchangeCode as jest.Mock).mockResolvedValue(undefined);
+      await expect(ctrl.exchange('agent', 'auth-code', 'state-1', ctx, 'Key 2')).resolves.toEqual({
+        ok: true,
+      });
+      expect(oauth.exchangeCode).toHaveBeenCalledWith(
+        'auth-code',
+        'state-1',
+        'agent-1',
+        'tenant-1',
+        'user-1',
+        'Key 2',
+      );
+    });
+
+    it.each([[''], ['   '], [42], [['Default']]])(
+      'rejects an invalid reconnectLabel (%p) before resolving the agent',
+      async (label) => {
+        const { ctrl, oauth, resolveAgent } = build();
+        await expect(ctrl.exchange('agent', 'code', 'state', ctx, label)).rejects.toThrow(
+          'reconnectLabel must be a non-empty string',
+        );
+        expect(resolveAgent.resolve).not.toHaveBeenCalled();
+        expect(oauth.exchangeCode).not.toHaveBeenCalled();
+      },
+    );
+
+    it('keeps the status of HTTP errors raised by the service', async () => {
+      const { ctrl, oauth } = build();
+      (oauth.exchangeCode as jest.Mock).mockRejectedValue(
+        new NotFoundException('No anthropic subscription connection named "Gone"'),
+      );
+      await expect(ctrl.exchange('agent', 'code', 'state', ctx, 'Gone')).rejects.toBeInstanceOf(
+        NotFoundException,
       );
     });
   });

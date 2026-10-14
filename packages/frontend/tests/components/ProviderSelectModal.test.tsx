@@ -689,6 +689,7 @@ describe('ProviderSelectModal', () => {
           'test-agent',
           'auth-code-123#xyz',
           'xyz',
+          undefined,
         );
       });
       expect(toast.success).toHaveBeenCalledWith('Anthropic subscription connected');
