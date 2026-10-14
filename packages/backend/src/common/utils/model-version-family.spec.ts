@@ -10,6 +10,24 @@ describe('resolveNewerModelVariant', () => {
     ).toBe('claude-sonnet-5-1');
   });
 
+  it('treats a dated major-only Claude ID as x.0, not as a huge minor', () => {
+    expect(
+      resolveNewerModelVariant('anthropic', 'claude-sonnet-4-20250514', ['claude-sonnet-4-6']),
+    ).toBe('claude-sonnet-4-6');
+    expect(
+      resolveNewerModelVariant('anthropic', 'claude-opus-4-6', ['claude-opus-4-20250514']),
+    ).toBeNull();
+  });
+
+  it('promotes Claude 5 routes to the 5.5 releases', () => {
+    expect(
+      resolveNewerModelVariant('anthropic', 'claude-opus-5', [
+        'claude-opus-5-5',
+        'claude-sonnet-5-5',
+      ]),
+    ).toBe('claude-opus-5-5');
+  });
+
   it('promotes an OpenAI route without changing its product variant', () => {
     expect(
       resolveNewerModelVariant('openai', 'gpt-5.6-sol', [

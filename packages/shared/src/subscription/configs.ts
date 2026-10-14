@@ -13,6 +13,8 @@ export const SUBSCRIPTION_PROVIDER_CONFIGS: Readonly<
     knownModels: Object.freeze([
       'claude-fable-5',
       'claude-fable-5-1',
+      'claude-opus-5-5',
+      'claude-sonnet-5-5',
       'claude-opus-5',
       'claude-sonnet-5',
       'claude-haiku-4-5-20251001',
@@ -33,7 +35,9 @@ export const SUBSCRIPTION_PROVIDER_CONFIGS: Readonly<
       modelContextWindows: Object.freeze({
         'claude-opus-4-8': 1000000,
         'claude-opus-5': 1000000,
+        'claude-opus-5-5': 1000000,
         'claude-sonnet-5': 1000000,
+        'claude-sonnet-5-5': 1000000,
       }),
       supportsPromptCaching: true,
       supportsBatching: false,
