@@ -9,6 +9,7 @@ import LimitRuleModal from '../components/LimitRuleModal.js';
 import type { LimitRuleData } from '../components/LimitRuleModal.js';
 import LimitRuleTable from '../components/LimitRuleTable.js';
 import LimitHistoryTable from '../components/LimitHistoryTable.js';
+import LimitsContentGuardrailsSection from './LimitsContentGuardrailsSection.js';
 import { KebabMenu, DeleteRuleModal, RemoveProviderModal } from '../components/LimitModals.js';
 import { toast } from '../services/toast-store.js';
 import { agentDisplayName } from '../services/agent-display-name.js';
@@ -191,6 +192,8 @@ const Limits: Component = () => {
           Create rule
         </button>
       </div>
+
+      <LimitsContentGuardrailsSection agentName={agentName} />
 
       <Show when={blockRulesExceeded()}>
         <div class="limits-warning-banner" role="alert">

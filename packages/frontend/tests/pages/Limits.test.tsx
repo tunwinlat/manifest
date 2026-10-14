@@ -90,6 +90,11 @@ vi.mock("../../src/services/auth-client.js", () => ({
   },
 }));
 
+vi.mock("../../src/pages/LimitsContentGuardrailsSection.js", () => ({
+  default: (props: any) => (
+    <div data-testid="content-guardrails-section" data-agent={props.agentName()} />
+  ),
+}));
 import Limits from "../../src/pages/Limits";
 
 describe("Limits page", () => {
@@ -109,6 +114,13 @@ describe("Limits page", () => {
   it("renders page description without duplicating the agent heading", () => {
     const { container } = render(() => <Limits />);
     expect(container.textContent).toContain("Get notified or block requests when token or cost thresholds are exceeded");
+  });
+
+  it("renders the content guardrails section for the current agent", () => {
+    render(() => <Limits />);
+    expect(screen.getByTestId("content-guardrails-section").getAttribute("data-agent")).toBe(
+      "test-agent",
+    );
   });
 
   it("renders Create rule button", () => {

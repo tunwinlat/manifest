@@ -746,6 +746,7 @@ export async function handleNonStreamResponse(
   apiMode: ProxyApiMode = 'chat_completions',
   reasoningCache?: ReasoningContentCache,
   capture?: AttemptRecordingCapture,
+  onResponseBody?: (body: unknown) => void,
 ): Promise<StreamUsage | null> {
   let responseBody: unknown;
   const recordedResponse = capture ? forward.response.clone() : null;
@@ -842,6 +843,10 @@ export async function handleNonStreamResponse(
 
   const body = responseBody as Record<string, unknown> | undefined;
   const streamUsage = parseUsageObject(body?.usage);
+
+  // After normalization, so observers (content guardrail audit) see the
+  // caller's own shape whatever the upstream provider was.
+  onResponseBody?.(responseBody);
 
   if (recordedResponse && capture) {
     const raw = await recordedResponse.text();

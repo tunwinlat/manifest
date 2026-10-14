@@ -150,6 +150,7 @@ describe('ProxyController', () => {
   let observationReporter: { report: jest.Mock };
   let recordingConfig: { isRecording: jest.Mock };
   let attemptRecording: { available: boolean; save: jest.Mock };
+  let contentGuardrails: { checkRequest: jest.Mock; auditResponse: jest.Mock };
 
   beforeEach(() => {
     jest.clearAllMocks();
@@ -189,6 +190,10 @@ describe('ProxyController', () => {
     };
     providerParamSpecs = { getCapabilities: jest.fn().mockResolvedValue(null) };
     modelsDevSync = { lookupModelCapabilities: jest.fn().mockReturnValue(null) };
+    contentGuardrails = {
+      checkRequest: jest.fn().mockResolvedValue(undefined),
+      auditResponse: jest.fn().mockResolvedValue(undefined),
+    };
     observationReporter = { report: jest.fn() };
     recordingConfig = { isRecording: jest.fn().mockResolvedValue(false) };
     attemptRecording = {
@@ -228,6 +233,7 @@ describe('ProxyController', () => {
       observationReporter as never,
       providerParamSpecs as never,
       modelsDevSync as never,
+      contentGuardrails as never,
       recordingConfig as never,
       attemptRecording as never,
     );
@@ -598,6 +604,10 @@ describe('ProxyController', () => {
     expect(res.status).toHaveBeenCalledWith(200);
     expect(res.json).toHaveBeenCalledWith(responseBody);
     expect(headers['X-Manifest-Tier']).toBe('simple');
+    expect(contentGuardrails.checkRequest).toHaveBeenCalledWith('agent-1', {
+      messages: [{ role: 'user', content: 'hi' }],
+    });
+    expect(contentGuardrails.auditResponse).toHaveBeenCalledWith('agent-1', responseBody);
     expect(headers['X-Manifest-Model']).toBe('gpt-4o');
     expect(headers['X-Manifest-Provider']).toBe('OpenAI');
     expect(headers['X-Manifest-Confidence']).toBe('0.9');
@@ -2283,6 +2293,32 @@ describe('ProxyController', () => {
           error_origin: 'policy',
           error_class: 'rate_limit',
           error_code: 'M201',
+        }),
+      );
+    });
+
+    it('records a content guardrail block as a Manifest policy row without contacting a provider', async () => {
+      contentGuardrails.checkRequest.mockRejectedValueOnce(new ManifestError('M205', 400));
+
+      const body = { messages: [{ role: 'user', content: 'the launch code' }] };
+      const req = mockRequest(body);
+      const { res } = mockResponse();
+
+      await controller.chatCompletions(req as never, res as never);
+      await flushRecorderMicrotasks();
+
+      expect(contentGuardrails.checkRequest).toHaveBeenCalledWith('agent-1', body);
+      expect(proxyService.proxyRequest).not.toHaveBeenCalled();
+      expect(rateLimiter.releaseSlot).toHaveBeenCalled();
+      expect(res.status).toHaveBeenCalledWith(400);
+      expect(mockMessageRepo.insert).toHaveBeenCalledWith(
+        expect.objectContaining({
+          status: 'failed',
+          error_http_status: 400,
+          routing_reason: 'content_guardrail_blocked',
+          error_origin: 'policy',
+          error_class: 'content_guardrail_blocked',
+          error_code: 'M205',
         }),
       );
     });
