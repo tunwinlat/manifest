@@ -61,14 +61,14 @@ RUN --mount=type=cache,target=/root/.npm \
 
 # Stage 4: Distroless runtime. Runs as the built-in `nonroot` user (UID
 # 65532) by default. No shell, no apk/apt, minimal CVE surface.
-FROM gcr.io/distroless/nodejs24-debian13:nonroot@sha256:b087b405441cd3e8eab9bd53ae3dd1c2b824e7ce13f25c5e9bb353fbdb3f4544 AS runtime
+FROM gcr.io/distroless/nodejs24-debian13:nonroot@sha256:bb6b03d81066993293a10feda7250e8e1cc034035fe9b61cfceededa7c8bf04d AS runtime
 WORKDIR /app
 
 LABEL org.opencontainers.image.title="Manifest" \
       org.opencontainers.image.description="Open-source AI model router. Plug your agents into any provider and send each query to the right model." \
       org.opencontainers.image.url="https://manifest.build" \
-      org.opencontainers.image.documentation="https://manifest.build/docs" \
-      org.opencontainers.image.source="https://github.com/mnfst/manifest" \
+      org.opencontainers.image.documentation="https://manifest.build/llm-gateway/docs/introduction/" \
+      org.opencontainers.image.source="https://github.com/mnfst/llm-gateway" \
       org.opencontainers.image.vendor="MNFST Inc." \
       org.opencontainers.image.licenses="MIT" \
       org.opencontainers.image.base.name="gcr.io/distroless/nodejs24-debian13:nonroot" \

@@ -27,28 +27,27 @@ vi.mock("@solidjs/router", () => ({
   useLocation: () => ({ get pathname() { return mockPathname; } }),
 }));
 
+vi.mock("../../src/services/dither-ground.js", () => ({
+  mountDither: () => () => {},
+}));
+
 const mockGetBillingStatus = vi.fn();
 vi.mock("../../src/services/api/billing.js", () => ({
   getBillingStatus: (...args: unknown[]) => mockGetBillingStatus(...args),
-}));
-
-// PivotAnnouncement reads the session for the email prefill.
-vi.mock("../../src/services/auth-client.js", () => ({
-  authClient: {
-    useSession: () => () => ({
-      data: { user: { id: "u1", name: "Test", email: "test@test.com" } },
-      isPending: false,
-    }),
-  },
 }));
 
 // Local providers only exist on self-hosted installs; the Sidebar hides the
 // Local nav entry in cloud. Default to self-hosted so the legacy link
 // assertions keep applying; cloud tests flip the flag.
 let mockIsSelfHosted = true;
+// MCP is on by default; an install served over plain HTTP runs without it and
+// the nav entry goes with it.
+let mockMcpEnabled = true;
+let mockPrivacyMode = false;
 vi.mock("../../src/services/setup-status.js", () => ({
   checkIsSelfHosted: () => Promise.resolve(mockIsSelfHosted),
-  checkPrivacyMode: () => false,
+  checkPrivacyMode: () => Promise.resolve(mockPrivacyMode),
+  checkMcpEnabled: () => Promise.resolve(mockMcpEnabled),
 }));
 
 // Stub the create-harness modal so the Sidebar test stays isolated from the
@@ -78,6 +77,7 @@ beforeEach(() => {
   sessionStorage.clear();
   vi.clearAllMocks();
   mockPathname = "/overview";
+  mockPrivacyMode = false;
   mockIsSelfHosted = true;
   mockGetBillingStatus.mockResolvedValue({
     enabled: false,
@@ -163,8 +163,37 @@ describe("Sidebar — global nav links", () => {
       "/providers/local",
       "/providers/usage-based",
       "/providers/subscriptions",
+      "/integrations/mcp",
+      "/integrations/cli",
       "/playground",
     ]);
+  });
+
+  it("hides the MCP entry when the backend runs without the MCP server", async () => {
+    mockMcpEnabled = false;
+    try {
+      const { container } = render(() => <Sidebar />);
+      await waitFor(() =>
+        expect(container.querySelector('a[href="/integrations/mcp"]')).toBeNull(),
+      );
+      // The rest of the Integrations section stays.
+      expect(container.querySelector('a[href="/integrations/cli"]')).not.toBeNull();
+    } finally {
+      mockMcpEnabled = true;
+    }
+  });
+
+  it("shows the Integrations entries with their New pills", async () => {
+    const { container } = render(() => <Sidebar />);
+    await waitFor(() =>
+      expect(container.querySelector('a[href="/providers/local"]')).not.toBeNull(),
+    );
+    const mcp = container.querySelector('a[href="/integrations/mcp"]');
+    const cli = container.querySelector('a[href="/integrations/cli"]');
+    expect(mcp?.textContent).toContain("MCP server");
+    expect(cli?.textContent).toContain("CLI");
+    expect(mcp?.querySelector(".sidebar__badge")?.textContent).toBe("New");
+    expect(cli?.querySelector(".sidebar__badge")?.textContent).toBe("New");
   });
 });
 
@@ -391,18 +420,25 @@ describe("Sidebar — usage card", () => {
   });
 });
 
-describe("Sidebar — pivot announcement", () => {
-  it("always renders the pivot card in place of the retired Autofix card", async () => {
+describe("Sidebar — API Bot announcement card", () => {
+  it("renders the API Bot card in self-hosted", async () => {
     const { container } = render(() => <Sidebar />);
-    await screen.findByText("Manifest is becoming the self-healing layer for APIs");
-    expect(container.querySelector(".sidebar-pivot")).not.toBeNull();
-    expect(container.querySelector(".sidebar-autofix")).toBeNull();
+    await screen.findByText("Meet API Bot");
+    expect(container.querySelector(".sidebar-api-bot")).not.toBeNull();
   });
 
-  it("renders the pivot card in cloud too", async () => {
+  it("renders the API Bot card in cloud too", async () => {
     mockIsSelfHosted = false;
     const { container } = render(() => <Sidebar />);
-    await screen.findByText("Manifest is becoming the self-healing layer for APIs");
-    expect(container.querySelector(".sidebar-pivot")).not.toBeNull();
+    await screen.findByText("Meet API Bot");
+    expect(container.querySelector(".sidebar-api-bot")).not.toBeNull();
+  });
+
+  it("hides the API Bot card in privacy mode", async () => {
+    mockPrivacyMode = true;
+    const { container } = render(() => <Sidebar />);
+    await screen.findByText("Playground");
+    await new Promise((r) => setTimeout(r, 0));
+    expect(container.querySelector(".sidebar-api-bot")).toBeNull();
   });
 });

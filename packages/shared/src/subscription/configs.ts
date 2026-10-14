@@ -24,6 +24,7 @@ export const SUBSCRIPTION_PROVIDER_CONFIGS: Readonly<
       'claude-opus-4-5-20251101',
       'claude-sonnet-4-6',
       'claude-sonnet-4-5-20250929',
+      'claude-haiku-5-5',
     ]),
     // Only real, active API IDs are published. This avoids exposing retired
     // Claude 4 aliases such as `claude-opus-4`; newly released model IDs are
@@ -73,6 +74,9 @@ export const SUBSCRIPTION_PROVIDER_CONFIGS: Readonly<
     subscriptionAuthMode: 'popup_oauth' as const,
     knownModels: Object.freeze([
       'gpt-6-astra',
+      'gpt-6.1-sol',
+      'gpt-6-sol',
+      'gpt-6-luna',
       'gpt-5.6-sol',
       'gpt-5.6-terra',
       'gpt-5.6-luna',
@@ -86,6 +90,9 @@ export const SUBSCRIPTION_PROVIDER_CONFIGS: Readonly<
       maxContextWindow: 200000,
       modelContextWindows: Object.freeze({
         'gpt-6-astra': 1050000,
+        'gpt-6.1-sol': 1050000,
+        'gpt-6-sol': 1050000,
+        'gpt-6-luna': 1050000,
         'gpt-5.6-sol': 1050000,
         'gpt-5.6-terra': 1050000,
         'gpt-5.6-luna': 1050000,
@@ -237,6 +244,7 @@ export const SUBSCRIPTION_PROVIDER_CONFIGS: Readonly<
     subscriptionKeyPlaceholder: 'Paste your Z.ai API key',
     knownModels: Object.freeze([
       'glm-5.3',
+      'glm-5.3-flash',
       'glm-5.2',
       'glm-5.1',
       'glm-5-turbo',
@@ -276,8 +284,8 @@ export const SUBSCRIPTION_PROVIDER_CONFIGS: Readonly<
     // the CodeAssist route recognizes; some current Gemini API model IDs still
     // 404 on the CodeAssist API.
     knownModels: Object.freeze([
+      'gemini-3.5-flash',
       'gemini-3.1-flash-lite',
-      'gemini-3.1-flash-lite-preview',
       'gemini-2.5-pro',
       'gemini-2.5-flash',
       'gemini-2.5-flash-lite',
@@ -293,7 +301,7 @@ export const SUBSCRIPTION_PROVIDER_CONFIGS: Readonly<
     supportsSubscription: true as const,
     subscriptionLabel: 'Grok subscription',
     subscriptionAuthMode: 'popup_oauth' as const,
-    knownModels: Object.freeze(['grok-4.6', 'grok-4.5']),
+    knownModels: Object.freeze(['grok-4.7', 'grok-4.6', 'grok-4.5']),
     subscriptionCapabilities: Object.freeze({
       maxContextWindow: 500000,
       supportsPromptCaching: true,

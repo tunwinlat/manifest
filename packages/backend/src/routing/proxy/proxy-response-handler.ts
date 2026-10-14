@@ -40,7 +40,11 @@ import type {
   ThinkingBlockRouteContext,
 } from './thinking-block-cache';
 import type { ReasoningContentCache } from './reasoning-content-cache';
-import type { ExtractedSignature } from './google-adapter';
+import {
+  createGoogleStreamState,
+  finishGoogleStream,
+  type ExtractedSignature,
+} from './google-adapter';
 import {
   extractThinkingBlocksFromMessagesResponse,
   type ExtractedThinkingBlocks,
@@ -401,32 +405,95 @@ function handleFallbackExhausted(
   );
 
   logger.warn(`Fallback chain exhausted: ${scrubSecrets(errorBody).slice(0, 200)}`);
-  const classified = classifyProviderError(errorStatus, errorBody);
-  const structured = parseStructuredProviderError(errorStatus, errorBody);
-  const providerCode = classified?.code ?? structured?.code;
   res.status(errorStatus);
   setHeaders(res, metaHeaders);
   res.setHeader('X-Manifest-Fallback-Exhausted', 'true');
+  const attempted = attemptedFallbackEntries(failedFallbacks, apiMode);
+  const primaryAutofix = autofixSummary(autofix);
+  // Every attempt reached a provider, so the error is provider-authored: the
+  // exhaustion is a routing outcome (the boolean + header), not an error class,
+  // and `code` keeps whatever the primary provider sent (null when nothing).
+  const primary = buildOpenAiCompatibleError(errorStatus, errorBody, {
+    source: 'provider',
+    provider: meta.provider,
+    model: meta.model,
+    apiMode,
+    extra: {
+      auth_type: meta.auth_type ?? null,
+      fallback_exhausted: true,
+      primary_model: meta.model,
+      primary_provider: meta.provider,
+      ...(primaryAutofix ? { autofix: primaryAutofix } : {}),
+      attempted_fallbacks: attempted,
+    },
+  });
   const responseBody = {
     ...(apiMode === 'messages' ? { type: 'error' } : {}),
-    error: buildOpenAiCompatibleError(errorStatus, errorBody, {
-      source: classified?.source ?? (structured ? 'provider' : 'manifest'),
-      code: providerCode ?? 'fallback_exhausted',
-      provider: meta.provider,
-      model: meta.model,
-      apiMode,
-      extra: {
-        primary_model: meta.model,
-        primary_provider: meta.provider,
-        attempted_fallbacks: failedFallbacks.map((f) => ({
-          model: f.model,
-          provider: f.provider,
-          status: f.status,
-        })),
-      },
-    }),
+    error: {
+      ...primary,
+      message: exhaustedMessage(primary.message as string, [
+        { provider: meta.provider, model: meta.model, status: errorStatus },
+        ...attempted,
+      ]),
+    },
   };
   res.json(responseBody);
+}
+
+/** Request-scoped Autofix evidence for the wire error body (never config). */
+function autofixSummary(
+  record: AutofixRecord | undefined,
+): { applied: boolean; original_status: number; retry_status: number | null } | undefined {
+  if (!record) return undefined;
+  const retry = getAutofixRetry(record);
+  return {
+    applied: retry !== undefined,
+    original_status: record.original_http_status,
+    retry_status: retry?.http_status ?? null,
+  };
+}
+
+/**
+ * One wire entry per fallback hop, each with the same sanitized message/code the
+ * primary gets. A patched retry and the original it replaced are two provider
+ * attempts (two audit rows) but one hop to the caller: keep the retry's entry
+ * and let its Autofix summary carry the pre-heal status.
+ */
+function attemptedFallbackEntries(
+  failedFallbacks: FailedFallback[],
+  apiMode?: ProxyApiMode,
+): Array<Record<string, unknown> & { provider: string; model: string; status: number }> {
+  const retriedHops = new Set(
+    failedFallbacks.filter((f) => f.autofixRole === 'retry').map((f) => f.fallbackIndex),
+  );
+  return failedFallbacks
+    .filter((f) => !(f.autofixRole === 'original' && retriedHops.has(f.fallbackIndex)))
+    .map((f) => {
+      const hop = buildOpenAiCompatibleError(f.status, f.errorBody, { apiMode });
+      const hopAutofix = autofixSummary(f.autofix);
+      return {
+        model: f.model,
+        provider: f.provider,
+        auth_type: f.authType ?? null,
+        status: f.status,
+        code: hop.code ?? null,
+        message: hop.message,
+        ...(hopAutofix ? { autofix: hopAutofix } : {}),
+      };
+    });
+}
+
+/**
+ * Lead with the primary provider's own sentence, then list the chain. No count:
+ * a patched-then-failed hop is two provider attempts but one entry here.
+ */
+function exhaustedMessage(
+  primaryMessage: string,
+  attempts: Array<{ provider: string; model: string; status: number }>,
+): string {
+  const lead = /[.!?]$/.test(primaryMessage) ? primaryMessage : `${primaryMessage}.`;
+  const list = attempts.map((a) => `${a.provider}/${a.model} ${a.status}`).join(', ');
+  return `${lead} Every attempt failed: ${list}.`;
 }
 
 export function recordFallbackFailures(
@@ -579,8 +646,8 @@ export async function handleStreamResponse(
   const responsesTransformer =
     apiMode === 'responses'
       ? createResponsesStreamTransformer(meta.model, {
-          structuredOutputToolName: forward.structuredOutputToolName,
           textFormat: forward.responsesTextFormat,
+          toolNames: forward.responsesToolNames,
         })
       : null;
   const streamTransformer = messagesTransformer ?? responsesTransformer;
@@ -594,6 +661,7 @@ export async function handleStreamResponse(
   }
 
   if (forward.isGoogle) {
+    const googleState = createGoogleStreamState();
     return pipeStream(
       forward.response.body!,
       res,
@@ -602,6 +670,7 @@ export async function handleStreamResponse(
         const { chunk: out, signatures } = providerClient.convertGoogleStreamChunk(
           innerChunk,
           meta.model,
+          googleState,
         );
         if (signatureCache && sessionKey) {
           for (const s of signatures) {
@@ -610,7 +679,14 @@ export async function handleStreamResponse(
         }
         return out ? toClientChunk(out) : null;
       },
-      finalize,
+      () => {
+        // A truncated stream still reports its last cumulative usage. A
+        // finalize hook makes pipeStream skip its own [DONE], so add it here.
+        const tail = finishGoogleStream(googleState, meta.model);
+        const tailOut = tail ? toClientChunk(tail) : null;
+        const end = finalize ? finalize() : 'data: [DONE]\n\n';
+        return (tailOut ?? '') + (end ?? '') || null;
+      },
       onClient,
       relayOptions,
     );
@@ -654,7 +730,10 @@ export async function handleStreamResponse(
       relayOptions,
     );
   }
-  if (forward.isChatGpt) {
+  // A native Responses upstream reaches this point only for a Chat Completions
+  // or Messages client (an Autofix heal that re-routes the Codex wire body), and
+  // its SSE is the same Responses stream the ChatGPT transformer converts.
+  if (forward.isChatGpt || forward.isResponses) {
     // Stateful: must be created once per stream and fed events in order.
     const chatGptTransformer = providerClient.createChatGptStreamTransformer(meta.model);
     return pipeStream(
@@ -796,7 +875,10 @@ export async function handleNonStreamResponse(
       );
     }
     delete (responseBody as Record<string, unknown>)._extractedThinkingBlocks;
-  } else if (forward.isChatGpt) {
+  } else if (forward.isChatGpt || forward.isResponses) {
+    // A native Responses upstream lands here for a Chat Completions or Messages
+    // client: an Autofix heal that changes the model re-routes the Codex wire
+    // body in `responses` mode, so its forward is isResponses, not isChatGpt.
     // Responses-format upstreams differ on their non-streaming shape. The
     // ChatGPT Codex subscription backend always returns SSE even when
     // stream:false, but the Bedrock mantle /openai/v1/responses endpoint (and
@@ -828,8 +910,8 @@ export async function handleNonStreamResponse(
 
   if (apiMode === 'responses' && !forward.isResponses) {
     responseBody = fromChatCompletionResponse(responseBody as Record<string, unknown>, meta.model, {
-      structuredOutputToolName: forward.structuredOutputToolName,
       textFormat: forward.responsesTextFormat,
+      toolNames: forward.responsesToolNames,
     });
   } else if (apiMode === 'messages' && !forward.isAnthropic) {
     // Anthropic upstreams already returned a Messages-shaped body via the
@@ -903,6 +985,12 @@ export function recordSuccess(
   requestId: string = uuid(),
   attemptNumber: number = currentPrimaryAttemptNumber(autofix),
   apiMode?: ProxyApiMode,
+  /**
+   * Autofix audit of the winning fallback hop. When set, the fallback-success
+   * row is stamped with the fallback's Phoenix metadata (role `retry`) instead
+   * of the primary's record.
+   */
+  fallbackAutofix?: AutofixRecord,
 ): void {
   if (meta.fallbackFromModel && fallbackSuccessTs) {
     const requestDurationMs = startTime == null ? undefined : Date.now() - startTime;
@@ -928,7 +1016,11 @@ export function recordSuccess(
         headerTierId: meta.header_tier_id,
         headerTierName: meta.header_tier_name,
         headerTierColor: meta.header_tier_color,
+        // `autofix` is the primary's record (request-level status); the winning
+        // fallback's own record is passed separately so only it can stamp the
+        // fallback-success row.
         autofix,
+        fallbackAutofix,
         apiMode,
       }),
       'fallback success',

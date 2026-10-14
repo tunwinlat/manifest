@@ -141,7 +141,10 @@ describe('ResolveService — edge cases', () => {
       headerTierService as unknown as HeaderTierService,
       { isQuotaExhausted: jest.fn().mockReturnValue(false) } as unknown as SubscriptionQuotaService,
       agentRepo as unknown as Repository<Agent>,
-      { addInvalidationListener: jest.fn() } as unknown as RoutingCacheService,
+      {
+        addInvalidationListener: jest.fn(),
+        addTenantInvalidationListener: jest.fn(),
+      } as unknown as RoutingCacheService,
     );
   });
 

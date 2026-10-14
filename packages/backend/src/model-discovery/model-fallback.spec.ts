@@ -328,6 +328,7 @@ describe('buildSubscriptionFallbackModels', () => {
       'claude-opus-4-5-20251101',
       'claude-sonnet-4-6',
       'claude-sonnet-4-5-20250929',
+      'claude-haiku-5-5',
     ]);
     expect(result.every((model) => model.provider === 'anthropic')).toBe(true);
     expect(result.every((model) => model.displayName === model.id)).toBe(true);
@@ -340,7 +341,10 @@ describe('buildSubscriptionFallbackModels', () => {
 
     expect(result.find((model) => model.id === 'claude-opus-4-8')?.contextWindow).toBe(1000000);
     expect(result.find((model) => model.id === 'claude-opus-5')?.contextWindow).toBe(1000000);
+    expect(result.find((model) => model.id === 'claude-opus-5-5')?.contextWindow).toBe(1000000);
     expect(result.find((model) => model.id === 'claude-sonnet-5')?.contextWindow).toBe(1000000);
+    expect(result.find((model) => model.id === 'claude-sonnet-5-5')?.contextWindow).toBe(1000000);
+    expect(result.find((model) => model.id === 'claude-haiku-5-5')?.contextWindow).toBe(200000);
     expect(result.every((model) => model.contextWindowSource === 'subscription_config')).toBe(true);
   });
 
@@ -426,7 +430,7 @@ describe('supplementWithKnownModels', () => {
     expect(opusEntries.filter((m) => m.id === 'claude-opus-4-6')).toHaveLength(1);
   });
 
-  it('keeps explicit gemini preview known models separate in exact mode', () => {
+  it('adds current gemini known models without reintroducing retired previews in exact mode', () => {
     const raw = [
       {
         id: 'gemini-3.1-flash-lite',
@@ -445,7 +449,8 @@ describe('supplementWithKnownModels', () => {
     const ids = result.map((m) => m.id);
 
     expect(ids).toContain('gemini-3.1-flash-lite');
-    expect(ids).toContain('gemini-3.1-flash-lite-preview');
+    expect(ids).toContain('gemini-3.5-flash');
+    expect(ids).not.toContain('gemini-3.1-flash-lite-preview');
     expect(ids).not.toContain('gemini-3.1-pro-preview');
     expect(ids).not.toContain('gemini-3-flash-preview');
   });

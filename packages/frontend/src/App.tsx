@@ -1,6 +1,7 @@
 import { useLocation } from '@solidjs/router';
 import {
   createEffect,
+  createResource,
   createSignal,
   lazy,
   onCleanup,
@@ -14,7 +15,9 @@ import Sidebar from './components/Sidebar.jsx';
 import AuthGuard from './components/AuthGuard.jsx';
 import VersionIndicator from './components/VersionIndicator.jsx';
 import UsageLimitBanner from './components/UsageLimitBanner.jsx';
+import ApiBotBanner from './components/ApiBotBanner.jsx';
 import { connectSse } from './services/sse.js';
+import { checkPrivacyMode } from './services/setup-status.js';
 import { RightSidebarProvider, useRightSidebar } from './services/right-sidebar.jsx';
 
 // Dev-only gateway tester. Gating the dynamic import behind the compile-time
@@ -36,6 +39,8 @@ const SseConnector: ParentComponent = (props) => {
 const AppInner: ParentComponent = (props) => {
   const location = useLocation();
   const [mobileNavOpen, setMobileNavOpen] = createSignal(false);
+  // Fork: hosted-product promos stay off in privacy mode.
+  const [privacyMode] = createResource(checkPrivacyMode);
   // The sidebar is global and rendered identically on every authenticated
   // route. Guest/setup routes never reach this component, so we show the
   // sidebar everywhere except the root redirect ("/") which navigates away
@@ -81,6 +86,9 @@ const AppInner: ParentComponent = (props) => {
           aria-label="Dashboard content"
         >
           <UsageLimitBanner />
+          <Show when={privacyMode() === false}>
+            <ApiBotBanner />
+          </Show>
           {props.children}
         </main>
         {rightSidebar()}

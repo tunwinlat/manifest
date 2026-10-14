@@ -1,5 +1,5 @@
-import { describe, it, expect, vi } from "vitest";
-import { fireEvent, render } from "@solidjs/testing-library";
+import { describe, it, expect, vi, beforeEach } from "vitest";
+import { fireEvent, render, waitFor } from "@solidjs/testing-library";
 
 const routerState = vi.hoisted(() => ({
   pathname: "/",
@@ -38,6 +38,15 @@ vi.mock("../../src/components/AuthGuard.jsx", () => ({
   default: (props: any) => <div data-testid="auth-guard">{props.children}</div>,
 }));
 
+vi.mock("../../src/services/dither-ground.js", () => ({
+  mountDither: () => () => {},
+}));
+
+let mockPrivacyMode = false;
+vi.mock("../../src/services/setup-status.js", () => ({
+  checkPrivacyMode: () => Promise.resolve(mockPrivacyMode),
+}));
+
 vi.mock("../../src/services/sse.js", () => ({
   connectSse: () => () => {},
   analyticsPing: () => 0,
@@ -48,6 +57,7 @@ import App from "../../src/App";
 beforeEach(() => {
   sessionStorage.clear();
   routerState.pathname = "/";
+  mockPrivacyMode = false;
 });
 
 describe("App", () => {
@@ -178,5 +188,17 @@ describe("App structure", () => {
     const { container } = render(() => <App />);
     const main = container.querySelector("main#main-content");
     expect(main).not.toBeNull();
+  });
+
+  it("shows the API Bot banner outside privacy mode", async () => {
+    const { container } = render(() => <App />);
+    await waitFor(() => expect(container.querySelector(".api-bot-banner")).not.toBeNull());
+  });
+
+  it("hides the API Bot banner in privacy mode", async () => {
+    mockPrivacyMode = true;
+    const { container } = render(() => <App />);
+    await new Promise((r) => setTimeout(r, 0));
+    expect(container.querySelector(".api-bot-banner")).toBeNull();
   });
 });

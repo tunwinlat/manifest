@@ -7,6 +7,7 @@
 @import './custom-select.css';
 @import './data.css';
 @import './agents.css';
+@import './platform-icons.css';
 @import './modals.css';
 @import './tokens.css';
 @import './wizard.css';
@@ -20,7 +21,7 @@
 @import './action-menu.css';
 @import './feedback.css';
 @import './params-card.css';
-@import './pivot.css';
+@import './api-bot.css';
 
 /*
  * Route-scoped stylesheets are intentionally NOT imported here. They are
@@ -840,6 +841,21 @@ h6 {
   font-weight: 500;
 }
 
+/* "New" pill on a nav entry. A showcase device with a short life: delete this
+   rule and the matching spans in Sidebar.tsx once the entries stop being new.
+   Same token pair as .setup-method__badge, so it follows the theme. */
+.sidebar__badge {
+  margin-left: auto;
+  flex: none;
+  padding: 1px 7px;
+  border-radius: var(--radius-pill);
+  font-size: var(--font-size-3xs);
+  font-weight: 600;
+  letter-spacing: 0.02em;
+  background: hsl(var(--chart-1) / 0.15);
+  color: hsl(var(--chart-1));
+}
+
 /* Nav row pairing a link with the create button (Harnesses). */
 .sidebar__link-row {
   display: flex;
@@ -1232,14 +1248,43 @@ h6 {
 @media (max-width: 768px) {
   .header {
     padding: 0 var(--gap-md);
+    /* The left group grows to fill the row here, so without a gap the
+       truncated breadcrumb would butt against the nav toggle. */
+    gap: var(--gap-md);
   }
   .header__left {
     flex: 1;
-    overflow: hidden;
+    min-width: 0;
   }
-  .header__logo-img {
-    width: 124px;
-    margin-bottom: 7px;
+  .chart-card__subtitle {
+    flex-direction: column;
+    align-items: stretch;
+    gap: 8px;
+  }
+  .chart-card__filters {
+    flex-wrap: wrap;
+    gap: 4px;
+  }
+  .chart-card__filters > button {
+    flex: 1 1 140px;
+  }
+  .chart-card__filters > div {
+    flex: 1 1 100%;
+  }
+  .chart-card__filters .agent-filter-select__trigger {
+    width: 100%;
+  }
+  .header__gear .header__dropdown {
+    /* Anchor to the viewport so short harness names cannot push the menu off-screen. */
+    position: fixed;
+    top: var(--header-height);
+    left: auto !important;
+    right: var(--gap-md) !important;
+  }
+  input,
+  textarea,
+  select {
+    font-size: 16px !important;
   }
   .header__separator,
   .header__breadcrumb-link,
@@ -1250,12 +1295,34 @@ h6 {
   }
   .header__breadcrumb-current {
     max-width: min(38vw, 180px);
+    /* Also shrink below the natural width when the logo + badge leave less
+       room than that cap, so the name ellipsizes instead of being clipped
+       by the left group's overflow. */
+    min-width: 0;
+    flex: 0 1 auto;
   }
   .header__breadcrumb-current > span {
     min-width: 0;
     overflow: hidden;
     text-overflow: ellipsis;
     white-space: nowrap;
+  }
+  .header__breadcrumb-current > .header__breadcrumb-provider-icon,
+  .header__breadcrumb-current > .header__breadcrumb-label {
+    display: none;
+  }
+  /* Tab bars (harness detail, routing layers, …) are inline-flex pills that
+     never shrink: when the tabs outgrow a phone screen the bar scrolls
+     sideways inside its own box instead of widening the whole page. The
+     pill is only 2.25rem tall, so the scrollbar is hidden rather than
+     squeezed in. */
+  .panel__tabs {
+    max-width: 100%;
+    overflow-x: auto;
+    scrollbar-width: none;
+  }
+  .panel__tabs::-webkit-scrollbar {
+    display: none;
   }
   .header__gear {
     flex-shrink: 0;
@@ -1476,9 +1543,6 @@ h6 {
 }
 
 @media (max-width: 480px) {
-  .header__logo-img {
-    width: 112px;
-  }
   .header__mode-badge {
     display: none;
   }
@@ -1501,11 +1565,6 @@ h6 {
   .header__gear {
     display: none;
   }
-}
-
-/* ── Dark-mode icon overrides ─────────────────────── */
-.dark img[src$='/icons/hermes.svg'] {
-  filter: brightness(0) invert(1);
 }
 
 /* ── Requests tables: pinned lead-column widths ──
