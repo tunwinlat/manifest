@@ -27,6 +27,7 @@ import {
 } from '../services/provider-api-key-urls.js';
 import { suggestNextProviderKeyLabel } from '../services/provider-key-labels.js';
 import { toast } from '../services/toast-store.js';
+import { DisconnectCancelledError } from '../services/routing-removal-confirm.js';
 
 export const MAX_KEYS_PER_PROVIDER = SHARED_MAX_KEYS_PER_PROVIDER;
 const MAX_LABEL_LENGTH = 50;
@@ -321,7 +322,12 @@ const ProviderKeyForm: Component<ProviderKeyFormProps> = (props) => {
       // labeled deletes inside list mode (those are api_key keys, never the
       // OAuth subscription token).
       if (!label && shouldRevokeOpenaiOAuth()) {
-        await revokeOpenaiOAuth(props.agentName).catch(() => {});
+        try {
+          await revokeOpenaiOAuth(props.agentName);
+        } catch (e) {
+          // Cancelled the routing confirmation: don't ask again below.
+          if (e instanceof DisconnectCancelledError) return;
+        }
       }
       const result = await disconnectProvider(
         props.agentName,

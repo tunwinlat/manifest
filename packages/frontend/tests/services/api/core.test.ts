@@ -1,11 +1,16 @@
 import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest';
 import {
+  fetchDisconnect,
   fetchJson,
   fetchMutate,
   parseErrorMessage,
   routingPath,
 } from '../../../src/services/api/core';
 import { invalidateAll } from '../../../src/services/api/cache';
+import {
+  DisconnectCancelledError,
+  pendingRoutingRemoval,
+} from '../../../src/services/routing-removal-confirm';
 
 const mockToastError = vi.fn();
 vi.mock('../../../src/services/toast-store.js', () => ({
@@ -252,6 +257,106 @@ describe('core api helpers', () => {
     it('falls back to status code when message field is absent', async () => {
       const res = makeResponse({ status: 400, body: { other: 'field' } });
       expect(await parseErrorMessage(res)).toBe('Request failed (400)');
+    });
+  });
+
+  describe('fetchDisconnect', () => {
+    const affected = [
+      {
+        agentName: 'Support Bot',
+        surface: 'tier',
+        name: 'default',
+        model: 'claude-opus-5',
+        position: 'primary',
+        replacement: 'gpt-6',
+      },
+    ];
+    const conflict = (body: unknown) => {
+      const res = makeResponse({ status: 409, body });
+      return { ...res, clone: () => res } as Response;
+    };
+    const answerDialog = async (confirmed: boolean) => {
+      await vi.waitFor(() => expect(pendingRoutingRemoval()).not.toBeNull());
+      expect(pendingRoutingRemoval()!.affected).toEqual(affected);
+      pendingRoutingRemoval()!.resolve(confirmed);
+    };
+
+    it('behaves like fetchMutate when the disconnect succeeds', async () => {
+      const fetchMock = vi.fn().mockResolvedValue(makeResponse({ body: { ok: true } }));
+      vi.stubGlobal('fetch', fetchMock);
+      await expect(fetchDisconnect('/oauth/x/revoke', { method: 'POST' })).resolves.toEqual({
+        ok: true,
+      });
+      expect(fetchMock).toHaveBeenCalledTimes(1);
+      expect(pendingRoutingRemoval()).toBeNull();
+    });
+
+    it('asks before removing routes and retries with removeFromRouting on confirm', async () => {
+      const fetchMock = vi
+        .fn()
+        .mockResolvedValueOnce(conflict({ code: 'provider_in_routing', affected }))
+        .mockResolvedValueOnce(makeResponse({ body: { ok: true } }));
+      vi.stubGlobal('fetch', fetchMock);
+
+      const result = fetchDisconnect('/oauth/anthropic/revoke?agentName=a', { method: 'POST' });
+      await answerDialog(true);
+
+      await expect(result).resolves.toEqual({ ok: true });
+      expect(fetchMock.mock.calls[1][0]).toBe(
+        '/api/v1/oauth/anthropic/revoke?agentName=a&removeFromRouting=true',
+      );
+      expect(fetchMock.mock.calls[1][1]).toMatchObject({ method: 'POST' });
+      expect(mockToastError).not.toHaveBeenCalled();
+    });
+
+    it('starts a query string when the path has none', async () => {
+      const fetchMock = vi
+        .fn()
+        .mockResolvedValueOnce(conflict({ code: 'provider_in_routing', affected }))
+        .mockResolvedValueOnce(makeResponse({ body: { ok: true } }));
+      vi.stubGlobal('fetch', fetchMock);
+
+      const result = fetchDisconnect('/providers/anthropic', { method: 'DELETE' });
+      await answerDialog(true);
+      await result;
+      expect(fetchMock.mock.calls[1][0]).toBe('/api/v1/providers/anthropic?removeFromRouting=true');
+    });
+
+    it('throws DisconnectCancelledError without a toast when the user cancels', async () => {
+      const fetchMock = vi
+        .fn()
+        .mockResolvedValueOnce(conflict({ code: 'provider_in_routing', affected }));
+      vi.stubGlobal('fetch', fetchMock);
+
+      const result = fetchDisconnect('/providers/anthropic', { method: 'DELETE' });
+      await answerDialog(false);
+
+      await expect(result).rejects.toBeInstanceOf(DisconnectCancelledError);
+      expect(fetchMock).toHaveBeenCalledTimes(1);
+      expect(mockToastError).not.toHaveBeenCalled();
+    });
+
+    it.each([
+      ['another conflict', { message: 'Key name taken' }, 'Key name taken'],
+      ['an empty affected list', { code: 'provider_in_routing', affected: [] }, 'Request failed'],
+    ])('treats %s as an ordinary error', async (_label, body, message) => {
+      vi.stubGlobal('fetch', vi.fn().mockResolvedValue(conflict(body)));
+      await expect(fetchDisconnect('/providers/x', { method: 'DELETE' })).rejects.toThrow(message);
+      expect(mockToastError).toHaveBeenCalledWith(expect.stringContaining(message));
+      expect(pendingRoutingRemoval()).toBeNull();
+    });
+
+    it('treats a non-JSON 409 as an ordinary error', async () => {
+      const res = {
+        ...makeResponse({ status: 409 }),
+        json: async () => {
+          throw new Error('not json');
+        },
+      } as Response;
+      vi.stubGlobal('fetch', vi.fn().mockResolvedValue({ ...res, clone: () => res }));
+      await expect(fetchDisconnect('/providers/x', { method: 'DELETE' })).rejects.toThrow(
+        'Request failed (409)',
+      );
     });
   });
 

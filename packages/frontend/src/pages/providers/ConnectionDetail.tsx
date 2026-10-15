@@ -55,6 +55,7 @@ import '../../styles/connection-detail.css';
 import { getModelDisplayName } from '../../services/model-display.js';
 import CustomProviderForm from '../../components/CustomProviderForm.jsx';
 import '../../styles/routing.css';
+import { DisconnectCancelledError } from '../../services/routing-removal-confirm.js';
 
 const AUTH_TYPE_LABELS: Record<string, string> = {
   subscription: 'Subscriptions',
@@ -604,7 +605,10 @@ const ConnectionDetail: Component = () => {
       toast.success('Connection removed');
       navigate(backLink());
     } catch (e: any) {
-      toast.error(e?.message ?? 'Failed to disconnect');
+      // Cancelling the "remove from routing" confirmation is not an error.
+      if (!(e instanceof DisconnectCancelledError)) {
+        toast.error(e?.message ?? 'Failed to disconnect');
+      }
     } finally {
       setDeletingConnection(false);
     }

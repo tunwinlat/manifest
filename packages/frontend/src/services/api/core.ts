@@ -1,4 +1,9 @@
 import { toast } from '../toast-store.js';
+import {
+  DisconnectCancelledError,
+  confirmRoutingRemoval,
+  isProviderInRoutingBody,
+} from '../routing-removal-confirm.js';
 import { cachedFetch, isCacheable, invalidateAll } from './cache.js';
 
 export const BASE_URL = '/api/v1';
@@ -87,6 +92,32 @@ export async function parseErrorMessage(res: Response): Promise<string> {
 
 export async function fetchMutate<T = void>(path: string, options: RequestInit): Promise<T> {
   const res = await fetch(`${BASE_URL}${path}`, { credentials: 'include', ...options });
+  return handleMutateResponse<T>(res);
+}
+
+/**
+ * A disconnect (DELETE / revoke). When routing still uses the connection the
+ * backend answers 409 `provider_in_routing` with every affected route: ask the
+ * user, and on confirm retry with `removeFromRouting=true` so those routes are
+ * removed as part of the disconnect. Throws DisconnectCancelledError on cancel.
+ */
+export async function fetchDisconnect<T = void>(path: string, options: RequestInit): Promise<T> {
+  const res = await fetch(`${BASE_URL}${path}`, { credentials: 'include', ...options });
+  if (res.status === 409) {
+    const body: unknown = await res
+      .clone()
+      .json()
+      .catch(() => null);
+    if (isProviderInRoutingBody(body)) {
+      if (!(await confirmRoutingRemoval(body.affected))) throw new DisconnectCancelledError();
+      const separator = path.includes('?') ? '&' : '?';
+      return fetchMutate<T>(`${path}${separator}removeFromRouting=true`, options);
+    }
+  }
+  return handleMutateResponse<T>(res);
+}
+
+async function handleMutateResponse<T>(res: Response): Promise<T> {
   if (!res.ok) {
     const message = await parseErrorMessage(res);
     toast.error(message);

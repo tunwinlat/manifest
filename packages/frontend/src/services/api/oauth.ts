@@ -1,4 +1,4 @@
-import { fetchJson, fetchMutate } from './core.js';
+import { fetchJson, fetchMutate, fetchDisconnect } from './core.js';
 
 export type MinimaxOAuthRegion = 'global' | 'cn';
 
@@ -52,7 +52,7 @@ export function submitXaiOAuthCallback(code: string, state: string) {
 export function revokeOpenaiOAuth(agentName: string, label?: string) {
   const params = new URLSearchParams({ agentName });
   if (label) params.set('label', label);
-  return fetchMutate<{ ok: boolean; notifications?: string[] }>(
+  return fetchDisconnect<{ ok: boolean; notifications?: string[] }>(
     `/oauth/openai/revoke?${params.toString()}`,
     { method: 'POST' },
   );
@@ -61,7 +61,7 @@ export function revokeOpenaiOAuth(agentName: string, label?: string) {
 export function revokeXaiOAuth(agentName: string, label?: string) {
   const params = new URLSearchParams({ agentName });
   if (label) params.set('label', label);
-  return fetchMutate<{ ok: boolean; notifications?: string[] }>(
+  return fetchDisconnect<{ ok: boolean; notifications?: string[] }>(
     `/oauth/xai/revoke?${params.toString()}`,
     { method: 'POST' },
   );
@@ -83,7 +83,7 @@ export function pollMinimaxOAuth(flowId: string) {
 export function revokeMinimaxOAuth(agentName: string, label?: string) {
   const params = new URLSearchParams({ agentName });
   if (label) params.set('label', label);
-  return fetchMutate<{ ok: boolean; notifications?: string[] }>(
+  return fetchDisconnect<{ ok: boolean; notifications?: string[] }>(
     `/oauth/minimax/revoke?${params.toString()}`,
     { method: 'POST' },
   );
@@ -107,7 +107,7 @@ export function pollKiroOAuth(flowId: string) {
 export function revokeKiroOAuth(agentName: string, label?: string) {
   const params = new URLSearchParams({ agentName });
   if (label) params.set('label', label);
-  return fetchMutate<{ ok: boolean; notifications?: string[] }>(
+  return fetchDisconnect<{ ok: boolean; notifications?: string[] }>(
     `/oauth/kiro/revoke?${params.toString()}`,
     { method: 'POST' },
   );
@@ -152,7 +152,7 @@ export function getAnthropicOAuthPending(agentName: string) {
 export function revokeAnthropicOAuth(agentName: string, label?: string) {
   const params = new URLSearchParams({ agentName });
   if (label) params.set('label', label);
-  return fetchMutate<{ ok: boolean; notifications?: string[] }>(
+  return fetchDisconnect<{ ok: boolean; notifications?: string[] }>(
     `/oauth/anthropic/revoke?${params.toString()}`,
     { method: 'POST' },
   );
@@ -175,7 +175,7 @@ export function submitGeminiOAuthCallback(code: string, state: string) {
 export function revokeGeminiOAuth(agentName: string, label?: string) {
   const params = new URLSearchParams({ agentName });
   if (label) params.set('label', label);
-  return fetchMutate<{ ok: boolean; notifications?: string[] }>(
+  return fetchDisconnect<{ ok: boolean; notifications?: string[] }>(
     `/oauth/gemini/revoke?${params.toString()}`,
     { method: 'POST' },
   );

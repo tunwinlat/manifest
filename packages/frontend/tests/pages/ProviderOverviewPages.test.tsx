@@ -389,6 +389,7 @@ vi.mock('../../src/services/setup-status.js', () => ({
 import GlobalOverview from '../../src/pages/GlobalOverview';
 import ConnectionDetail from '../../src/pages/providers/ConnectionDetail';
 import { resetPlanStore } from '../../src/services/plan-store';
+import { DisconnectCancelledError } from '../../src/services/routing-removal-confirm';
 
 const overviewResponse = {
   summary: {
@@ -1610,6 +1611,19 @@ describe('ConnectionDetail (analytics)', () => {
     await waitFor(() =>
       expect(routerState.navigate).toHaveBeenCalledWith('/providers/usage-based'),
     );
+  });
+
+  it('stays put without an error toast when the routing confirmation is cancelled', async () => {
+    apiMocks.disconnectConnection.mockRejectedValueOnce(new DisconnectCancelledError());
+    render(() => <ConnectionDetail />);
+    await openManageModal();
+
+    fireEvent.click(screen.getByText('Disconnect'));
+
+    await waitFor(() => expect(apiMocks.disconnectConnection).toHaveBeenCalled());
+    await Promise.resolve();
+    expect(toastMock.error).not.toHaveBeenCalled();
+    expect(routerState.navigate).not.toHaveBeenCalled();
   });
 
   it('shows an error toast when disconnecting fails', async () => {

@@ -6,7 +6,14 @@ import type {
   ResponseMode,
   OutputModality,
 } from 'manifest-shared';
-import { BASE_URL, fetchJson, fetchMutate, parseErrorMessage, routingPath } from './core.js';
+import {
+  BASE_URL,
+  fetchJson,
+  fetchMutate,
+  parseErrorMessage,
+  routingPath,
+  fetchDisconnect,
+} from './core.js';
 
 export type { AuthType, ModelCapability, ModelModality, ModelRoute, ResponseMode, OutputModality };
 
@@ -89,7 +96,7 @@ export function disconnectProvider(
   if (label) params.set('label', label);
   const qs = params.toString();
   const path = qs ? `${base}?${qs}` : base;
-  return fetchMutate<{ ok: boolean; notifications: string[] }>(path, { method: 'DELETE' });
+  return fetchDisconnect<{ ok: boolean; notifications: string[] }>(path, { method: 'DELETE' });
 }
 
 export function renameProviderKey(
@@ -120,7 +127,7 @@ export function disconnectConnection(provider: string, authType?: AuthType, labe
   if (label) params.set('label', label);
   const qs = params.toString();
   const base = `/providers/${encodeURIComponent(provider)}`;
-  return fetchMutate<{ ok: boolean; notifications: string[] }>(qs ? `${base}?${qs}` : base, {
+  return fetchDisconnect<{ ok: boolean; notifications: string[] }>(qs ? `${base}?${qs}` : base, {
     method: 'DELETE',
   });
 }
