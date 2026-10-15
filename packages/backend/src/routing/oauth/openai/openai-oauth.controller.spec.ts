@@ -1,4 +1,4 @@
-import { HttpException, HttpStatus } from '@nestjs/common';
+import { HttpException, HttpStatus, ConflictException } from '@nestjs/common';
 import { ConfigService } from '@nestjs/config';
 import { OpenaiOauthController } from './openai-oauth.controller';
 import { OpenaiOauthService } from './openai-oauth.service';
@@ -208,8 +208,57 @@ describe('OpenaiOauthController', () => {
         'openai',
         'subscription',
         undefined,
+        undefined,
+        { removeRoutes: false },
       );
       expect(result).toEqual({ ok: true, notifications: [] });
+    });
+
+    it('keeps the tokens when the disconnect is refused because routing uses it', async () => {
+      resolveAgent.resolve.mockResolvedValue({ id: 'agent-id-1', tenant_id: 'tenant-1' } as never);
+      providerKeyService.getProviderKeys.mockResolvedValue([
+        {
+          id: 'key-1',
+          label: 'Default',
+          priority: 0,
+          apiKey: JSON.stringify({ t: 'access-tok', r: 'refresh-tok', e: Date.now() + 3600000 }),
+          region: null,
+        },
+      ]);
+      providerService.removeProvider.mockRejectedValueOnce(
+        new ConflictException('Cannot disconnect provider while its models are assigned'),
+      );
+
+      await expect(
+        controller.revoke('my-agent', undefined, {
+          tenantId: 'tenant-1',
+          userId: 'user-1',
+        } as never),
+      ).rejects.toBeInstanceOf(ConflictException);
+      // A refused (or cancelled) disconnect must not kill the stored tokens.
+      expect(oauthService.revokeToken).not.toHaveBeenCalled();
+    });
+
+    it('removes routes using the connection when removeFromRouting is true', async () => {
+      resolveAgent.resolve.mockResolvedValue({ id: 'agent-id-1', tenant_id: 'tenant-1' } as never);
+      providerKeyService.getProviderKeys.mockResolvedValue([]);
+
+      await controller.revoke(
+        'my-agent',
+        'Key 2',
+        { tenantId: 'tenant-1', userId: 'user-1' } as never,
+        'true',
+      );
+
+      expect(providerService.removeProvider).toHaveBeenCalledWith(
+        'agent-id-1',
+        'tenant-1',
+        'openai',
+        'subscription',
+        'Key 2',
+        undefined,
+        { removeRoutes: true },
+      );
     });
 
     it('revokes and removes only the labeled OpenAI subscription key', async () => {
@@ -246,6 +295,8 @@ describe('OpenaiOauthController', () => {
         'openai',
         'subscription',
         'Key 2',
+        undefined,
+        { removeRoutes: false },
       );
       expect(result).toEqual({ ok: true, notifications: [] });
     });
@@ -281,6 +332,8 @@ describe('OpenaiOauthController', () => {
         'openai',
         'subscription',
         undefined,
+        undefined,
+        { removeRoutes: false },
       );
       expect(result).toEqual({ ok: true, notifications: [] });
     });
@@ -303,6 +356,8 @@ describe('OpenaiOauthController', () => {
         'openai',
         'subscription',
         undefined,
+        undefined,
+        { removeRoutes: false },
       );
       expect(result).toEqual({ ok: true, notifications: [] });
     });

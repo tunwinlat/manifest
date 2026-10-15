@@ -126,6 +126,8 @@ describe('MinimaxOauthController', () => {
       'minimax',
       'subscription',
       undefined,
+      undefined,
+      { removeRoutes: false },
     );
     expect(result).toEqual({ ok: true, notifications: [] });
   });
@@ -144,6 +146,8 @@ describe('MinimaxOauthController', () => {
       'minimax',
       'subscription',
       'Key 2',
+      undefined,
+      { removeRoutes: false },
     );
     expect(result).toEqual({ ok: true, notifications: [] });
   });

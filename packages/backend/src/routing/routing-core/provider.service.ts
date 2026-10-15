@@ -16,6 +16,15 @@ import { HeaderTier } from '../../entities/header-tier.entity';
 import { AgentMessage } from '../../entities/agent-message.entity';
 import { ModelPricingCacheService } from '../../model-prices/model-pricing-cache.service';
 import { RoutingCacheService } from './routing-cache.service';
+import {
+  PROVIDER_IN_ROUTING_CODE,
+  planRouteRemoval,
+  responseModeAfterRemoval,
+  type ProviderRouteImpact,
+  type RemoveProviderOptions,
+  type RouteRemovalPlan,
+  type RouteSurface,
+} from './provider-route-removal';
 import { randomUUID } from 'crypto';
 import {
   encrypt,
@@ -62,13 +71,23 @@ const DEFAULT_LABEL = 'Default';
 const SUBSCRIPTION_LOCK_TIMEOUT = '5s';
 const SUBSCRIPTION_REFRESH_IDLE_TIMEOUT = '20s';
 
-interface ProviderRouteReference {
+interface RouteMatchOptions {
+  /** Count only routes pinned to the key by label (deleting one key among several). */
+  pinnedOnly?: boolean;
+}
+
+type RoutingRow = Pick<
+  TierAssignment,
+  'override_route' | 'fallback_routes' | 'response_mode' | 'updated_at'
+>;
+
+interface RoutingRowTarget {
   agentId: string;
   agentName: string;
-  surface: 'tier' | 'specificity' | 'header';
+  surface: RouteSurface;
   name: string;
-  model: string;
-  position: string;
+  row: RoutingRow;
+  dirty: boolean;
 }
 
 interface OwnedAgentRouteTarget {
@@ -895,9 +914,16 @@ export class ProviderService {
     authType?: AuthType,
     label?: string,
     manager?: EntityManager,
+    options: RemoveProviderOptions = {},
   ): Promise<{ notifications: string[] }> {
+    // Removing routes and the connection must succeed or fail together.
+    if (options.removeRoutes && !manager) {
+      return this.providerRepo.manager.transaction((tx) =>
+        this.removeProvider(agentId, tenantId, provider, authType, label, tx, options),
+      );
+    }
     if (label) {
-      return this.removeKeyByLabel(agentId, tenantId, provider, authType, label, manager);
+      return this.removeKeyByLabel(agentId, tenantId, provider, authType, label, manager, options);
     }
 
     // Legacy disconnect: deactivate every active key for the (provider,
@@ -921,7 +947,7 @@ export class ProviderService {
       if (!any) throw new NotFoundException('Provider not found');
       affectedRows = [any];
     } else {
-      await this.assertProviderRoutesNotUsed(tenantId, activeRows);
+      await this.clearOrAssertProviderRoutes(tenantId, activeRows, options, {}, manager);
       const now = new Date().toISOString();
       for (const row of activeRows) {
         row.is_active = false;
@@ -966,28 +992,119 @@ export class ProviderService {
     });
   }
 
+  /**
+   * Refuse (409) while routing uses the connection, carrying every affected
+   * route so the dashboard can show what a forced disconnect would remove.
+   */
   private async assertProviderRoutesNotUsed(
     tenantId: string,
     providerRows: TenantProvider[],
+    match: RouteMatchOptions = {},
   ): Promise<void> {
-    if (providerRows.length === 0) return;
+    const impacts = await this.collectProviderRouteImpacts(tenantId, providerRows, match);
+    if (impacts.length === 0) return;
 
-    const first = await this.findFirstProviderRouteReference(tenantId, providerRows);
-    if (!first) return;
-
-    throw new ConflictException(
-      `Cannot disconnect provider while its models are assigned to routing. ` +
+    const first = impacts[0];
+    throw new ConflictException({
+      statusCode: 409,
+      error: 'Conflict',
+      code: PROVIDER_IN_ROUTING_CODE,
+      message:
+        `Cannot disconnect provider while its models are assigned to routing. ` +
         `Update routing first (agent "${first.agentName}", ${first.surface} ${first.name}, ` +
         `${first.position}: ${first.model}).`,
-    );
+      affected: impacts.map(({ agentName, surface, name, model, position, replacement }) => ({
+        agentName,
+        surface,
+        name,
+        model,
+        position,
+        replacement,
+      })),
+    });
   }
 
-  private async findFirstProviderRouteReference(
+  /** Either remove the routes that use `providerRows`, or refuse while any exist. */
+  private async clearOrAssertProviderRoutes(
     tenantId: string,
     providerRows: TenantProvider[],
-  ): Promise<ProviderRouteReference | null> {
+    options: RemoveProviderOptions,
+    match: RouteMatchOptions,
+    manager?: EntityManager,
+  ): Promise<void> {
+    if (options.removeRoutes) {
+      await this.removeProviderRoutes(tenantId, providerRows, match, manager);
+    } else {
+      await this.assertProviderRoutesNotUsed(tenantId, providerRows, match);
+    }
+  }
+
+  /** Every route (across all owned agents) that uses `providerRows`. */
+  private async collectProviderRouteImpacts(
+    tenantId: string,
+    providerRows: TenantProvider[],
+    match: RouteMatchOptions = {},
+  ): Promise<ProviderRouteImpact[]> {
+    const impacts: ProviderRouteImpact[] = [];
+    await this.forEachRoutingRow(tenantId, providerRows, match, undefined, (target, plan) => {
+      for (const removed of plan.removed) {
+        impacts.push({
+          agentId: target.agentId,
+          agentName: target.agentName,
+          surface: target.surface,
+          name: target.name,
+          model: removed.model,
+          position: removed.position,
+          replacement: removed.position === 'primary' ? plan.replacement : null,
+        });
+      }
+    });
+    return impacts;
+  }
+
+  /**
+   * Drop every route that uses `providerRows` from all owned agents' routing:
+   * matching fallbacks are removed and a matching primary is replaced by the
+   * first surviving fallback (or cleared). Same rows and matching as
+   * {@link collectProviderRouteImpacts}, so the preview is exactly what runs.
+   */
+  private async removeProviderRoutes(
+    tenantId: string,
+    providerRows: TenantProvider[],
+    match: RouteMatchOptions,
+    manager?: EntityManager,
+  ): Promise<void> {
+    const mutatedAgentIds = new Set<string>();
+    const now = new Date().toISOString();
+    await this.forEachRoutingRow(tenantId, providerRows, match, manager, (target, plan) => {
+      const row = target.row;
+      row.override_route = plan.overrideRoute;
+      row.fallback_routes = plan.fallbackRoutes;
+      row.response_mode = responseModeAfterRemoval(row.response_mode, plan);
+      row.updated_at = now;
+      target.dirty = true;
+      mutatedAgentIds.add(target.agentId);
+    });
+    // invalidateTenant() doesn't clear per-agent tier caches.
+    for (const id of mutatedAgentIds) this.routingCache.invalidateAgent(id);
+  }
+
+  /**
+   * Visit each routing row (tiers, active task categories, enabled custom
+   * tiers) of every owned agent that has one of `providerRows` enabled, with
+   * the removal plan for routes that use those rows. Rows the callback marks
+   * `dirty` are saved afterwards (through `manager` when given).
+   */
+  private async forEachRoutingRow(
+    tenantId: string,
+    providerRows: TenantProvider[],
+    match: RouteMatchOptions,
+    manager: EntityManager | undefined,
+    visit: (target: RoutingRowTarget, plan: RouteRemovalPlan) => void,
+  ): Promise<void> {
+    if (providerRows.length === 0) return;
     const agents = await this.listOwnedAgentRouteTargets(tenantId);
-    if (agents.length === 0) return null;
+    if (agents.length === 0) return;
 
     const agentIds = agents.map((agent) => agent.id);
     const agentNamesById = new Map(agents.map((agent) => [agent.id, agent.name]));
@@ -998,57 +1115,55 @@ export class ProviderService {
       if (!enabled || enabled.size === 0) return [];
       return providerRows.filter((row) => enabled.has(row.id));
     };
-    const agentName = (agentId: string) => agentNamesById.get(agentId) ?? agentId;
+    const repoFor = <T extends object>(entity: new () => T, fallback: Repository<T>) =>
+      manager ? manager.getRepository(entity) : fallback;
+    const tierRepo = repoFor(TierAssignment, this.tierRepo);
+    const specificityRepo = repoFor(SpecificityAssignment, this.specificityRepo);
+    const headerTierRepo = repoFor(HeaderTier, this.headerTierRepo);
 
-    const tiers = await this.tierRepo.find({ where: { agent_id: In(agentIds) } });
-    for (const tier of tiers) {
-      const match = this.findProviderRouteReferenceInRoutes(
-        tier.agent_id,
-        agentName(tier.agent_id),
-        'tier',
-        tier.tier,
-        tier.override_route,
-        tier.fallback_routes,
-        providerRowsForAgent(tier.agent_id),
+    const handle = <R extends RoutingRow>(
+      agentId: string,
+      surface: RouteSurface,
+      name: string,
+      row: R,
+    ): boolean => {
+      const rows = providerRowsForAgent(agentId);
+      if (rows.length === 0) return false;
+      const plan = planRouteRemoval(row.override_route, row.fallback_routes, (route) =>
+        this.routeBelongsToProviderRows(route, rows, match),
       );
-      if (match) return match;
-    }
+      if (!plan) return false;
+      const target: RoutingRowTarget = {
+        agentId,
+        agentName: agentNamesById.get(agentId) ?? agentId,
+        surface,
+        name,
+        row,
+        dirty: false,
+      };
+      visit(target, plan);
+      return target.dirty;
+    };
 
-    const specificityRows = await this.specificityRepo.find({
+    const tiers = await tierRepo.find({ where: { agent_id: In(agentIds) } });
+    const dirtyTiers = tiers.filter((t) => handle(t.agent_id, 'tier', t.tier, t));
+    if (dirtyTiers.length > 0) await tierRepo.save(dirtyTiers);
+
+    const specificityRows = await specificityRepo.find({
       where: { agent_id: In(agentIds), is_active: true },
     });
-    for (const row of specificityRows) {
-      if (row.is_active === false) continue;
-      const match = this.findProviderRouteReferenceInRoutes(
-        row.agent_id,
-        agentName(row.agent_id),
-        'specificity',
-        row.category,
-        row.override_route,
-        row.fallback_routes,
-        providerRowsForAgent(row.agent_id),
-      );
-      if (match) return match;
-    }
+    const dirtySpecs = specificityRows.filter(
+      (row) => row.is_active !== false && handle(row.agent_id, 'specificity', row.category, row),
+    );
+    if (dirtySpecs.length > 0) await specificityRepo.save(dirtySpecs);
 
-    const headerTiers = await this.headerTierRepo.find({
+    const headerTiers = await headerTierRepo.find({
       where: { agent_id: In(agentIds), enabled: true },
     });
-    for (const tier of headerTiers) {
-      if (tier.enabled === false) continue;
-      const match = this.findProviderRouteReferenceInRoutes(
-        tier.agent_id,
-        agentName(tier.agent_id),
-        'header',
-        tier.name,
-        tier.override_route,
-        tier.fallback_routes,
-        providerRowsForAgent(tier.agent_id),
-      );
-      if (match) return match;
-    }
-
-    return null;
+    const dirtyHeaders = headerTiers.filter(
+      (tier) => tier.enabled !== false && handle(tier.agent_id, 'header', tier.name, tier),
+    );
+    if (dirtyHeaders.length > 0) await headerTierRepo.save(dirtyHeaders);
   }
 
   private async listEnabledProviderIdsByAgent(
@@ -1065,47 +1180,23 @@ export class ProviderService {
     return byAgent;
   }
 
-  private findProviderRouteReferenceInRoutes(
-    agentId: string,
-    agentName: string,
-    surface: ProviderRouteReference['surface'],
-    name: string,
-    overrideRoute: ModelRoute | null,
-    fallbackRoutes: ModelRoute[] | null,
-    providerRows: TenantProvider[],
-  ): ProviderRouteReference | null {
-    if (providerRows.length === 0) return null;
-    if (this.routeBelongsToProviderRows(overrideRoute, providerRows)) {
-      return {
-        agentId,
-        agentName,
-        surface,
-        name,
-        model: overrideRoute!.model,
-        position: 'primary',
-      };
-    }
-
-    for (const [i, fallback] of (fallbackRoutes ?? []).entries()) {
-      if (!this.routeBelongsToProviderRows(fallback, providerRows)) continue;
-      return {
-        agentId,
-        agentName,
-        surface,
-        name,
-        model: fallback.model,
-        position: `fallback ${i + 1}`,
-      };
-    }
-    return null;
-  }
-
-  private routeBelongsToProviderRows(route: ModelRoute | null, rows: TenantProvider[]): boolean {
+  private routeBelongsToProviderRows(
+    route: ModelRoute | null,
+    rows: TenantProvider[],
+    match: RouteMatchOptions = {},
+  ): boolean {
     if (!route) return false;
-    return rows.some((row) => this.routeBelongsToProviderRow(route, row));
+    return rows.some((row) => this.routeBelongsToProviderRow(route, row, match));
   }
 
-  private routeBelongsToProviderRow(route: ModelRoute, row: TenantProvider): boolean {
+  private routeBelongsToProviderRow(
+    route: ModelRoute,
+    row: TenantProvider,
+    match: RouteMatchOptions = {},
+  ): boolean {
+    // An unpinned route follows the provider's primary key, so it survives the
+    // deletion of one key among several: only routes pinned to it are affected.
+    if (match.pinnedOnly && !route.keyLabel) return false;
     const providerName = row.provider.toLowerCase();
     const rowLabel = (row.label ?? DEFAULT_LABEL).toLowerCase();
     const routeProvider = route.provider?.toLowerCase();
@@ -1150,6 +1241,7 @@ export class ProviderService {
     authType: AuthType | undefined,
     label: string,
     manager?: EntityManager,
+    options: RemoveProviderOptions = {},
   ): Promise<{ notifications: string[] }> {
     const repo = this.tenantProviderRepo(manager);
     const where: FindOptionsWhere<TenantProvider> = { tenant_id: tenantId, provider };
@@ -1181,10 +1273,24 @@ export class ProviderService {
     if (!stillHasOtherKeys) {
       // Last key — delegate to the no-label path. We pass authType through so
       // the lookup matches what we just deleted.
-      return this.removeProvider(agentId, tenantId, provider, target.auth_type, undefined, manager);
+      return this.removeProvider(
+        agentId,
+        tenantId,
+        provider,
+        target.auth_type,
+        undefined,
+        manager,
+        options,
+      );
     }
 
-    await this.assertProviderRoutesNotUsed(tenantId, [target]);
+    await this.clearOrAssertProviderRoutes(
+      tenantId,
+      [target],
+      options,
+      { pinnedOnly: true },
+      manager,
+    );
     await repo.remove(target);
     await this.deleteProviderAccess([target.id], manager);
     await this.renumberPriorities(tenantId, provider, target.auth_type, manager);

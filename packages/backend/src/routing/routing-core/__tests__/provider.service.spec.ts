@@ -1,4 +1,5 @@
 import { MAX_KEYS_PER_PROVIDER, type ModelRoute } from 'manifest-shared';
+import { ConflictException } from '@nestjs/common';
 import { ProviderService } from '../provider.service';
 import { TenantProvider } from '../../../entities/tenant-provider.entity';
 import { TierAssignment } from '../../../entities/tier-assignment.entity';
@@ -779,7 +780,7 @@ describe('ProviderService — route-only cleanup paths', () => {
       expect(providerRepo.update).not.toHaveBeenCalled();
     });
 
-    it('checks owned-agent routes in batches and stops after the first match', async () => {
+    it("checks every owned agent's routes once and reports each match", async () => {
       const agentRepo = makeRepo([
         { id: 'agent-1', name: 'first-bot', display_name: 'First Bot' },
         { id: 'agent-2', name: 'second-bot', display_name: 'Second Bot' },
@@ -812,13 +813,34 @@ describe('ProviderService — route-only cleanup paths', () => {
         } as unknown as TierAssignment,
       ]);
 
-      await expect(localSvc.deactivateAllProviders('agent-1', 'tenant-1')).rejects.toThrow(
-        'Update routing first (agent "Second Bot", tier standard, primary: gpt-4o).',
+      const caught: unknown = await localSvc.deactivateAllProviders('agent-1', 'tenant-1').then(
+        () => undefined,
+        (e: unknown) => e,
       );
+      expect(caught).toBeInstanceOf(ConflictException);
+      const error = caught as ConflictException;
+      expect(error.message).toBe(
+        'Cannot disconnect provider while its models are assigned to routing. ' +
+          'Update routing first (agent "Second Bot", tier standard, primary: gpt-4o).',
+      );
+      expect(error.getResponse()).toMatchObject({
+        code: 'provider_in_routing',
+        affected: [
+          {
+            agentName: 'Second Bot',
+            surface: 'tier',
+            name: 'standard',
+            model: 'gpt-4o',
+            position: 'primary',
+            replacement: null,
+          },
+        ],
+      });
 
+      // One query per surface for all agents, not one per agent.
       expect(tierRepo.find).toHaveBeenCalledTimes(1);
-      expect(specRepo.find).not.toHaveBeenCalled();
-      expect(headerTierRepo.find).not.toHaveBeenCalled();
+      expect(specRepo.find).toHaveBeenCalledTimes(1);
+      expect(headerTierRepo.find).toHaveBeenCalledTimes(1);
       expect(providerRepo.update).not.toHaveBeenCalled();
     });
   });

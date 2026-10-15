@@ -162,6 +162,11 @@ export class RemoveProviderQueryDto {
   @IsNotEmpty()
   @MaxLength(MAX_PROVIDER_KEY_LABEL_LENGTH)
   label?: string;
+
+  /** Remove routes that use the connection instead of refusing with a 409. */
+  @IsOptional()
+  @IsIn(['true', 'false'])
+  removeFromRouting?: 'true' | 'false';
 }
 
 export class RenameProviderKeyDto {

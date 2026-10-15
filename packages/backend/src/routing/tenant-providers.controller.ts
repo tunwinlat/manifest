@@ -117,6 +117,8 @@ export class TenantProvidersController {
       params.provider,
       query.authType,
       query.label,
+      undefined,
+      { removeRoutes: query.removeFromRouting === 'true' },
     );
     await this.invalidateTenantRouting(tenantId);
     await this.cacheManager.clear();
