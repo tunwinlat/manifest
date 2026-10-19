@@ -20,7 +20,7 @@ import { GeminiOauthService } from './gemini-oauth.service';
 import { ResolveAgentService } from '../../routing-core/resolve-agent.service';
 import { ProviderService } from '../../routing-core/provider.service';
 import { ProviderKeyService } from '../../routing-core/provider-key.service';
-import { optionalTrimmedStringQuery } from '../core/query-params';
+import { booleanFlagQuery, optionalTrimmedStringQuery } from '../core/query-params';
 
 @Controller('api/v1/oauth/gemini')
 export class GeminiOauthController {
@@ -77,11 +77,13 @@ export class GeminiOauthController {
     @Query('agentName') agentName: string,
     @Query('label') label: string | string[] | undefined,
     @TenantCtx() ctx: TenantContext,
+    @Query('removeFromRouting') removeFromRouting?: string | string[],
   ) {
     if (!agentName) {
       throw new HttpException('agentName query parameter is required', HttpStatus.BAD_REQUEST);
     }
     const keyLabel = optionalTrimmedStringQuery(label, 'label');
+    const removeRoutes = booleanFlagQuery(removeFromRouting, 'removeFromRouting');
     const agent = await this.resolveAgent.resolve(ctx.tenantId, agentName);
     const keys = await this.providerKeyService.getProviderKeys(
       agent.tenant_id,
@@ -92,6 +94,18 @@ export class GeminiOauthController {
       ? keys.filter((key) => key.label.toLowerCase() === keyLabel.toLowerCase())
       : keys;
 
+    const { notifications } = await this.providerService.removeProvider(
+      agent.id,
+      agent.tenant_id,
+      'gemini',
+      'subscription',
+      keyLabel,
+      undefined,
+      { removeRoutes },
+    );
+
+    // Revoke at the provider only after the connection is removed: a refused
+    // (409) or cancelled disconnect must leave the stored tokens usable.
     for (const key of keysToRevoke) {
       if (!key.apiKey) continue;
       try {
@@ -102,14 +116,6 @@ export class GeminiOauthController {
         this.logger.warn('Could not parse OAuth token blob for revocation');
       }
     }
-
-    const { notifications } = await this.providerService.removeProvider(
-      agent.id,
-      agent.tenant_id,
-      'gemini',
-      'subscription',
-      keyLabel,
-    );
 
     return { ok: true, notifications };
   }

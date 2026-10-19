@@ -180,6 +180,8 @@ describe('AnthropicOauthController', () => {
         'anthropic',
         'subscription',
         undefined,
+        undefined,
+        { removeRoutes: false },
       );
     });
 
@@ -195,6 +197,8 @@ describe('AnthropicOauthController', () => {
         'anthropic',
         'subscription',
         'Key 2',
+        undefined,
+        { removeRoutes: false },
       );
     });
 

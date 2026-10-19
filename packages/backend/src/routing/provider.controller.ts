@@ -305,6 +305,8 @@ export class ProviderController {
       params.provider,
       query.authType,
       query.label,
+      undefined,
+      { removeRoutes: query.removeFromRouting === 'true' },
     );
     await this.cacheManager.clear();
     return { ok: true, notifications };

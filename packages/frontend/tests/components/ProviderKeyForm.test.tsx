@@ -43,6 +43,7 @@ vi.mock('../../src/services/provider-api-key-urls.js', () => ({
 
 import ProviderKeyForm, { AddAnotherKeyAction } from '../../src/components/ProviderKeyForm';
 import { suggestNextProviderKeyLabel } from '../../src/services/provider-key-labels';
+import { DisconnectCancelledError } from '../../src/services/routing-removal-confirm';
 
 /* ── Test helpers ───────────────────────────────────────────── */
 
@@ -772,6 +773,30 @@ describe('ProviderKeyForm', () => {
       expect(revokeOpenaiOAuthMock).toHaveBeenCalled();
       // Even with the rejection, disconnectProvider runs.
       expect(disconnectProviderMock).toHaveBeenCalled();
+    });
+
+    it('stops without a second confirmation when the OpenAI revoke is cancelled', async () => {
+      revokeOpenaiOAuthMock.mockRejectedValueOnce(new DisconnectCancelledError());
+      const def = makeProviderDef({
+        id: 'openai',
+        name: 'OpenAI',
+        supportsSubscription: true,
+        subscriptionAuthMode: 'popup_oauth',
+      });
+      const { container } = mount({
+        provDef: def,
+        provId: 'openai',
+        connected: true,
+        isSubMode: true,
+        selectedAuthType: 'subscription',
+      });
+      fireEvent.click(
+        container.querySelector('.provider-detail__disconnect-icon') as HTMLButtonElement,
+      );
+      await Promise.resolve();
+      await Promise.resolve();
+      expect(revokeOpenaiOAuthMock).toHaveBeenCalled();
+      expect(disconnectProviderMock).not.toHaveBeenCalled();
     });
 
     it('surfaces backend notifications as toast errors', async () => {

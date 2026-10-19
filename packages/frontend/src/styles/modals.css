@@ -795,3 +795,46 @@
   margin-top: var(--gap-sm);
   margin-bottom: var(--gap-lg);
 }
+
+/* ── Disconnect: routes that will be removed ──────── */
+.routing-removal__list {
+  max-height: 320px;
+  overflow-y: auto;
+  margin: 0 0 var(--gap-md);
+  padding: 0;
+  list-style: none;
+  border: 1px solid hsl(var(--border));
+  border-radius: var(--radius);
+}
+
+.routing-removal__harness {
+  padding: var(--gap-sm) var(--gap-md);
+  border-bottom: 1px solid hsl(var(--border));
+}
+
+.routing-removal__harness:last-child {
+  border-bottom: none;
+}
+
+.routing-removal__harness-name {
+  font-size: var(--font-size-sm);
+  font-weight: 600;
+  color: hsl(var(--foreground));
+}
+
+.routing-removal__routes {
+  margin: var(--gap-xs) 0 0;
+  padding: 0;
+  list-style: none;
+}
+
+.routing-removal__route {
+  font-size: var(--font-size-xs);
+  color: hsl(var(--muted-foreground));
+  line-height: 1.6;
+}
+
+.routing-removal__model {
+  font-family: var(--font-mono);
+  color: hsl(var(--foreground));
+}

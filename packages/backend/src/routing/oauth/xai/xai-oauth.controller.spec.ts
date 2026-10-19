@@ -198,6 +198,8 @@ describe('XaiOauthController', () => {
         'xai',
         'subscription',
         undefined,
+        undefined,
+        { removeRoutes: false },
       );
     });
 
@@ -216,6 +218,8 @@ describe('XaiOauthController', () => {
         'xai',
         'subscription',
         undefined,
+        undefined,
+        { removeRoutes: false },
       );
     });
 
@@ -246,6 +250,8 @@ describe('XaiOauthController', () => {
         'xai',
         'subscription',
         'work',
+        undefined,
+        { removeRoutes: false },
       );
     });
 

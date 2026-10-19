@@ -176,6 +176,8 @@ describe('KiroOauthController', () => {
         'kiro',
         'subscription',
         'Kiro 1',
+        undefined,
+        { removeRoutes: false },
       );
       expect(result).toEqual({ ok: true, notifications: ['gone'] });
     });

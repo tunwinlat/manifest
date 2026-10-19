@@ -198,6 +198,8 @@ describe('GeminiOauthController', () => {
         'gemini',
         'subscription',
         undefined,
+        undefined,
+        { removeRoutes: false },
       );
       expect(result).toEqual({ ok: true, notifications: [] });
     });
@@ -218,6 +220,8 @@ describe('GeminiOauthController', () => {
         'gemini',
         'subscription',
         undefined,
+        undefined,
+        { removeRoutes: false },
       );
       expect(result).toEqual({ ok: true, notifications: [] });
     });
@@ -240,6 +244,8 @@ describe('GeminiOauthController', () => {
         'gemini',
         'subscription',
         undefined,
+        undefined,
+        { removeRoutes: false },
       );
       expect(result).toEqual({ ok: true, notifications: [] });
     });
@@ -266,6 +272,8 @@ describe('GeminiOauthController', () => {
         'gemini',
         'subscription',
         'work',
+        undefined,
+        { removeRoutes: false },
       );
       expect(result).toEqual({ ok: true, notifications: [] });
     });

@@ -96,7 +96,7 @@
 --z-toast: 8000
 --z-tooltip: 9999
 
-## Blocks (319 BEM blocks, 1705 classes)
+## Blocks (320 BEM blocks, 1711 classes)
 account-back-btn (agents.css): account-back-btn
 account-email-footer (agents.css): account-email-footer
 account-email-toggle (agents.css): account-email-toggle--disabled
@@ -335,6 +335,7 @@ routing-pipeline-help-steps (routing-tabs.css): routing-pipeline-help-steps
 routing-pipeline-help-summary (routing-tabs.css): routing-pipeline-help-summary
 routing-priority-legend (routing.css): routing-priority-legend
 routing-providers-info (routing.css): routing-providers-info routing-providers-info__icon routing-providers-info__icon--has-tooltip routing-providers-info__icons routing-providers-info__label routing-providers-info__tooltip
+routing-removal (modals.css): routing-removal__harness routing-removal__harness-name routing-removal__list routing-removal__model routing-removal__route routing-removal__routes
 routing-section (routing-header-tiers.css, routing-specificity.css, routing-tabs.css, routing.css): routing-section routing-section--dimmed routing-section__controls routing-section__cta routing-section__empty routing-section__empty-desc routing-section__empty-title routing-section__header routing-section__header--header-tiers routing-section__header--with-control routing-section__subtitle routing-section__title
 routing-switch (routing.css): routing-switch routing-switch--disabled routing-switch--on routing-switch__label routing-switch__thumb routing-switch__track
 routing-tabs (routing-tabs.css): routing-tabs routing-tabs__arrow routing-tabs__dot routing-tabs__dot--off routing-tabs__dot--on routing-tabs__header routing-tabs__header-right routing-tabs__panel

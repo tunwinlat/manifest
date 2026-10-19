@@ -397,6 +397,8 @@ describe('TenantProvidersController mutations (no harness required)', () => {
       'openai',
       'api_key',
       'Default',
+      undefined,
+      { removeRoutes: false },
     );
     expectTenantInvalidated(routingCache);
     expect(cacheManager.clear).toHaveBeenCalled();

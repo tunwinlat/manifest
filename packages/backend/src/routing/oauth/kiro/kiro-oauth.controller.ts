@@ -12,7 +12,7 @@ import { KiroOauthService } from './kiro-oauth.service';
 import { KiroAuthorizationOptionsError, type KiroAuthorizationOptions } from './kiro-oidc';
 import { ResolveAgentService } from '../../routing-core/resolve-agent.service';
 import { ProviderService } from '../../routing-core/provider.service';
-import { optionalTrimmedStringQuery } from '../core/query-params';
+import { booleanFlagQuery, optionalTrimmedStringQuery } from '../core/query-params';
 
 @Controller('api/v1/oauth/kiro')
 export class KiroOauthController {
@@ -79,11 +79,13 @@ export class KiroOauthController {
     @Query('agentName') agentName: string,
     @Query('label') label: string | string[] | undefined,
     @TenantCtx() ctx: TenantContext,
+    @Query('removeFromRouting') removeFromRouting?: string | string[],
   ) {
     if (!agentName) {
       throw new HttpException('agentName query parameter is required', HttpStatus.BAD_REQUEST);
     }
     const keyLabel = optionalTrimmedStringQuery(label, 'label');
+    const removeRoutes = booleanFlagQuery(removeFromRouting, 'removeFromRouting');
     const agent = await this.resolveAgent.resolve(ctx.tenantId, agentName);
     const { notifications } = await this.providerService.removeProvider(
       agent.id,
@@ -91,6 +93,8 @@ export class KiroOauthController {
       'kiro',
       'subscription',
       keyLabel,
+      undefined,
+      { removeRoutes },
     );
     return { ok: true, notifications };
   }

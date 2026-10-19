@@ -163,6 +163,8 @@ describe('OpenaiOauthController', () => {
         'openai',
         'subscription',
         undefined,
+        undefined,
+        { removeRoutes: false },
       );
     });
 
@@ -180,6 +182,8 @@ describe('OpenaiOauthController', () => {
         'openai',
         'subscription',
         undefined,
+        undefined,
+        { removeRoutes: false },
       );
     });
 
@@ -199,6 +203,8 @@ describe('OpenaiOauthController', () => {
         'openai',
         'subscription',
         'work',
+        undefined,
+        { removeRoutes: false },
       );
     });
 

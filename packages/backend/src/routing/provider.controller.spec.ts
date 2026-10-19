@@ -939,6 +939,8 @@ describe('ProviderController', () => {
         'openai',
         undefined,
         undefined,
+        undefined,
+        { removeRoutes: false },
       );
       expect(result).toEqual({ ok: true, notifications: 3 });
       expect(mockCacheManager.clear).toHaveBeenCalled();
@@ -970,6 +972,27 @@ describe('ProviderController', () => {
         'anthropic',
         'subscription',
         undefined,
+        undefined,
+        { removeRoutes: false },
+      );
+    });
+
+    it('should remove routes using the connection when removeFromRouting is true', async () => {
+      mockProviderService.removeProvider.mockResolvedValue({ notifications: [] });
+
+      await controller.removeProvider(
+        mockCtx,
+        { agentName: 'test-agent', provider: 'anthropic' } as never,
+        { authType: 'subscription', label: 'Key 2', removeFromRouting: 'true' } as never,
+      );
+      expect(mockProviderService.removeProvider).toHaveBeenCalledWith(
+        TEST_AGENT_ID,
+        'tenant-1',
+        'anthropic',
+        'subscription',
+        'Key 2',
+        undefined,
+        { removeRoutes: true },
       );
     });
   });

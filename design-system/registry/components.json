@@ -3309,6 +3309,19 @@
         "routing.css"
       ]
     },
+    "routing-removal": {
+      "classes": [
+        "routing-removal__harness",
+        "routing-removal__harness-name",
+        "routing-removal__list",
+        "routing-removal__model",
+        "routing-removal__route",
+        "routing-removal__routes"
+      ],
+      "files": [
+        "modals.css"
+      ]
+    },
     "routing-section": {
       "classes": [
         "routing-section",
@@ -5130,8 +5143,8 @@
   "stats": {
     "tokens": 79,
     "darkOverrides": 38,
-    "blocks": 319,
-    "classes": 1705,
+    "blocks": 320,
+    "classes": 1711,
     "canonicalRules": 46,
     "ghostRules": 46
   }
