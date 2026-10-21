@@ -36,6 +36,7 @@ import { BillingModule } from './billing/billing.module';
 import { DiscoveryModule } from './discovery/discovery.module';
 import { CrmMetricsModule } from './crm-metrics/crm-metrics.module';
 import { McpModule } from './mcp/mcp.module';
+import { AdminModule } from './admin/admin.module';
 import { mcpAvailability } from './auth/mcp-availability';
 import { isSelfHosted } from './common/utils/detect-self-hosted';
 import { DebugSentryController } from './sentry/debug-sentry.controller';
@@ -115,6 +116,7 @@ const mcpImports = mcpAvailability().enabled ? [McpModule] : [];
     VersionModule,
     ErrorPagesModule,
     SetupModule,
+    AdminModule,
     FreeModelsModule,
     TelemetryModule,
     BackfillModule,

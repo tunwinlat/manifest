@@ -7,6 +7,16 @@ const mockBetterAuth = jest.fn().mockReturnValue({
 
 jest.mock('better-auth', () => ({ betterAuth: mockBetterAuth }));
 jest.mock('pg', () => ({ Pool: jest.fn() }));
+jest.mock('better-auth/api', () => ({
+  APIError: class APIError extends Error {
+    constructor(
+      readonly status: string,
+      readonly body: { message: string },
+    ) {
+      super(body.message);
+    }
+  },
+}));
 const mockStripePlugin = jest.fn().mockReturnValue({ id: 'stripe' });
 jest.mock('@better-auth/stripe', () => ({ stripe: mockStripePlugin }));
 // The MCP/OAuth plugins are ESM-only. Jest (Node 22) cannot require them, so
@@ -844,6 +854,30 @@ describe('auth.instance', () => {
         subscription: { plan: 'pro' },
       });
       expect(webhookEmails.sendSubscriptionCanceledEmail).toHaveBeenCalled();
+    });
+  });
+
+  describe('sign-up gate hook', () => {
+    function hookWithQuery(query: jest.Mock) {
+      // eslint-disable-next-line @typescript-eslint/no-require-imports
+      const { Pool } = require('pg') as { Pool: jest.Mock };
+      Pool.mockImplementation(() => ({ query }));
+      loadModule();
+      const config = mockBetterAuth.mock.calls[0][0];
+      return config.databaseHooks.user.create.before as () => Promise<void>;
+    }
+
+    it('lets the first user through', async () => {
+      const query = jest.fn().mockResolvedValue({ rows: [{ count: '0' }] });
+      await expect(hookWithQuery(query)()).resolves.toBeUndefined();
+    });
+
+    it('refuses a new user once sign-up is closed', async () => {
+      const query = jest
+        .fn()
+        .mockResolvedValueOnce({ rows: [{ count: '2' }] })
+        .mockResolvedValueOnce({ rows: [{ public_signup: false }] });
+      await expect(hookWithQuery(query)()).rejects.toThrow('Sign-up is closed');
     });
   });
 

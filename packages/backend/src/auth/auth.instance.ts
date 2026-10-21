@@ -1,6 +1,7 @@
 import { betterAuth } from 'better-auth';
 import type { Auth } from 'better-auth';
 import { jwt } from 'better-auth/plugins';
+import { APIError } from 'better-auth/api';
 import { cimd } from '@better-auth/cimd';
 import { mcp } from '@better-auth/mcp';
 import { stripe as stripePlugin } from '@better-auth/stripe';
@@ -19,6 +20,7 @@ import {
 import { fetchClientMetadataResource } from './cimd-client-metadata-fetch';
 import { authOriginFromEnv, mcpAvailability } from './mcp-availability';
 import { MCP_READ_SCOPE, MCP_WRITE_SCOPE, MCP_SCOPES } from './mcp-scopes';
+import { SIGNUP_CLOSED_MESSAGE, isSignupAllowed } from './signup-gate';
 
 const port = process.env['PORT'] ?? '3001';
 const isDev = (process.env['NODE_ENV'] ?? '') !== 'production';
@@ -138,6 +140,12 @@ function createDatabaseConnection() {
 }
 
 const database = createDatabaseConnection();
+
+/** Fork: the sign-up gate (see `signup-gate.ts`) reads through Better Auth's own pool. */
+async function querySignupGate(sql: string): Promise<Array<Record<string, unknown>>> {
+  const result = (await database.query(sql)) as { rows: Array<Record<string, unknown>> };
+  return result.rows;
+}
 
 const betterAuthSecret = process.env['BETTER_AUTH_SECRET'] ?? '';
 const nodeEnv = process.env['NODE_ENV'] ?? '';
@@ -329,6 +337,18 @@ const pluginAuth = betterAuth({
     },
   },
   trustedOrigins: buildTrustedOrigins(),
+  databaseHooks: {
+    user: {
+      create: {
+        // Fork: covers the email form and social sign-in alike.
+        before: async () => {
+          if (!(await isSignupAllowed(querySignupGate))) {
+            throw new APIError('BAD_REQUEST', { message: SIGNUP_CLOSED_MESSAGE });
+          }
+        },
+      },
+    },
+  },
 });
 
 // `auth` stays typed as the generic `Auth` for the many existing consumers that

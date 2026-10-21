@@ -12,6 +12,7 @@ interface SetupStatusResponse {
   emailConfigured?: boolean;
   privacyMode?: boolean;
   mcpEnabled?: boolean;
+  signupEnabled?: boolean;
 }
 
 interface SetupStatusResult {
@@ -23,6 +24,7 @@ interface SetupStatusResult {
   emailConfigured: boolean;
   privacyMode: boolean;
   mcpEnabled: boolean;
+  signupEnabled: boolean;
 }
 
 let cachedPromise: Promise<SetupStatusResult> | null = null;
@@ -43,6 +45,7 @@ async function fetchSetupStatus(): Promise<SetupStatusResult> {
         emailConfigured: true,
         privacyMode: false,
         mcpEnabled: true,
+        signupEnabled: true,
       };
     const data = (await res.json()) as SetupStatusResponse;
     return {
@@ -57,6 +60,8 @@ async function fetchSetupStatus(): Promise<SetupStatusResult> {
       privacyMode: data.privacyMode === true,
       // Same reasoning, plus a backend older than this field always serves MCP.
       mcpEnabled: data.mcpEnabled !== false,
+      // Fork: a backend older than this field always allowed sign-up.
+      signupEnabled: data.signupEnabled !== false,
     };
   } catch {
     return {
@@ -68,6 +73,7 @@ async function fetchSetupStatus(): Promise<SetupStatusResult> {
       emailConfigured: true,
       privacyMode: false,
       mcpEnabled: true,
+      signupEnabled: true,
     };
   }
 }
@@ -115,6 +121,15 @@ export async function checkPrivacyMode(): Promise<boolean> {
  */
 export async function checkMcpEnabled(): Promise<boolean> {
   return (await getSetupStatus()).mcpEnabled;
+}
+
+/**
+ * Fork: false when the install's administrator closed public sign-up — the
+ * login page then hides its sign-up link and the sign-up page explains who
+ * to ask instead.
+ */
+export async function checkSignupEnabled(): Promise<boolean> {
+  return (await getSetupStatus()).signupEnabled;
 }
 
 /** Invalidate the cached status. Call this after a successful setup. */

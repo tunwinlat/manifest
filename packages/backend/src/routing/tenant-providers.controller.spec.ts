@@ -478,4 +478,102 @@ describe('TenantProvidersController mutations (no harness required)', () => {
     expect(providerService.renameKey).not.toHaveBeenCalled();
     expect(discoveryService.discoverAllForAgent).not.toHaveBeenCalled();
   });
+
+  describe('sharing (fork)', () => {
+    const build = (shared: object, cache = { clear: jest.fn() }) =>
+      new TenantProvidersController(
+        {} as never,
+        {} as never,
+        {} as never,
+        {} as never,
+        {} as never,
+        {} as never,
+        cache as never,
+        shared as never,
+      );
+
+    it('lists what other users share, with their models', async () => {
+      const shared = {
+        listForConsumer: jest.fn().mockResolvedValue([
+          {
+            id: 'conn-1',
+            provider: 'anthropic',
+            authType: 'subscription',
+            label: 'Work',
+            ownerName: 'Ada',
+            ownerEmail: 'ada@x.io',
+            models: [
+              {
+                id: 'claude-sonnet-4-5',
+                displayName: 'Claude Sonnet 4.5',
+                provider: 'anthropic',
+                contextWindow: 200000,
+                capabilityReasoning: true,
+                capabilityCode: true,
+                qualityScore: 5,
+              },
+            ],
+          },
+        ]),
+      };
+      const result = await build(shared).listSharedWithMe(ctx);
+      expect(shared.listForConsumer).toHaveBeenCalledWith('tenant-1');
+      expect(result.connections).toEqual([
+        {
+          id: 'conn-1',
+          provider: 'anthropic',
+          auth_type: 'subscription',
+          label: 'Work',
+          owner_name: 'Ada',
+          owner_email: 'ada@x.io',
+          models: [
+            {
+              model_name: 'claude-sonnet-4-5',
+              display_name: 'Claude Sonnet 4.5',
+              provider: 'anthropic',
+              auth_type: 'subscription',
+              context_window: 200000,
+              capability_reasoning: true,
+              capability_code: true,
+              quality_score: 5,
+            },
+          ],
+        },
+      ]);
+    });
+
+    it('lists nothing for a user without a tenant yet', async () => {
+      const shared = { listForConsumer: jest.fn() };
+      await expect(
+        build(shared).listSharedWithMe({ tenantId: null, userId: 'u' } as never),
+      ).resolves.toEqual({ connections: [] });
+      expect(shared.listForConsumer).not.toHaveBeenCalled();
+    });
+
+    it('degrades without the sharing service', async () => {
+      const bare = new TenantProvidersController(
+        {} as never,
+        {} as never,
+        {} as never,
+        {} as never,
+        {} as never,
+        {} as never,
+        {} as never,
+      );
+      await expect(bare.listSharedWithMe(ctx)).resolves.toEqual({ connections: [] });
+      await expect(bare.setSharing(ctx, { connectionId: 'c' }, { shared: true })).rejects.toThrow(
+        'Connection not found',
+      );
+    });
+
+    it('toggles sharing for the caller tenant and clears response caches', async () => {
+      const shared = { setShared: jest.fn().mockResolvedValue(true) };
+      const cache = { clear: jest.fn() };
+      await expect(
+        build(shared, cache).setSharing(ctx, { connectionId: 'conn-1' }, { shared: true }),
+      ).resolves.toEqual({ id: 'conn-1', is_shared: true });
+      expect(shared.setShared).toHaveBeenCalledWith('tenant-1', 'conn-1', true);
+      expect(cache.clear).toHaveBeenCalled();
+    });
+  });
 });

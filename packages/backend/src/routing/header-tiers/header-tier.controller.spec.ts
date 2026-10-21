@@ -142,6 +142,7 @@ describe('HeaderTierController', () => {
       'api_key',
       undefined,
       undefined,
+      undefined,
     );
   });
 
@@ -166,6 +167,7 @@ describe('HeaderTierController', () => {
       'openai',
       'api_key',
       'Personal',
+      undefined,
       undefined,
     );
   });
@@ -192,6 +194,31 @@ describe('HeaderTierController', () => {
       'subscription',
       undefined,
       true,
+      undefined,
+    );
+  });
+
+  it('setOverride forwards a shared subscription connection', async () => {
+    const { controller, service } = makeController();
+    await controller.setOverride(ctx, 'my-agent', 'ht-1', {
+      model: 'claude',
+      route: {
+        model: 'claude',
+        provider: 'anthropic',
+        authType: 'subscription',
+        sharedConnectionId: 'conn-9',
+      },
+    });
+    expect(service.setOverride).toHaveBeenCalledWith(
+      'agent-1',
+      'tenant-1',
+      'ht-1',
+      'claude',
+      'anthropic',
+      'subscription',
+      undefined,
+      undefined,
+      'conn-9',
     );
   });
 

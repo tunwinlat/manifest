@@ -1,4 +1,4 @@
-import { Injectable, Logger, Optional } from '@nestjs/common';
+import { Injectable, Logger, Optional, Inject } from '@nestjs/common';
 import { InjectRepository } from '@nestjs/typeorm';
 import { Repository } from 'typeorm';
 import type { AuthType, ModelRoute } from 'manifest-shared';
@@ -15,6 +15,16 @@ import {
   inferProviderFromModelName,
 } from '../../common/utils/provider-aliases';
 import { isManifestUsableProvider } from '../../common/utils/subscription-support';
+import { SharedConnectionService } from './shared-connection.service';
+
+/** A key selected from another user's shared subscription (fork). */
+export interface SharedProviderKey {
+  key: CachedProviderKey;
+  /** Tenant that owns the connection — OAuth refresh and locks run against it. */
+  ownerTenantId: string;
+  provider: string;
+  authType: AuthType;
+}
 
 /**
  * Sentinel id for the built-in Ollama tile. getProviderKeys() short-circuits
@@ -61,7 +71,35 @@ export class ProviderKeyService {
     @Optional()
     @InjectRepository(AgentEnabledProvider)
     private readonly enabledProviderRepo: Repository<AgentEnabledProvider> | null = null,
+    // Explicit token: a `T | null` parameter type carries no DI metadata.
+    @Optional()
+    @Inject(SharedConnectionService)
+    private readonly sharedConnections: SharedConnectionService | null = null,
   ) {}
+
+  /**
+   * Fork: the key of a subscription another user shares with
+   * `consumerTenantId`. The lookup runs in the owner's tenant without an agent
+   * filter (the consumer's harness has no rows in the owner's tenant), and only
+   * the exact shared row qualifies — never a sibling connection of the owner.
+   */
+  async selectSharedProviderKey(
+    consumerTenantId: string,
+    connectionId: string,
+  ): Promise<SharedProviderKey | null> {
+    const row = await this.sharedConnections?.findUsable(consumerTenantId, connectionId);
+    if (!row) return null;
+    const keys = await this.getProviderKeys(row.tenant_id, row.provider, row.auth_type);
+    const key = keys.find((k) => k.id === row.id);
+    if (!key) return null;
+    return { key, ownerTenantId: row.tenant_id, provider: row.provider, authType: row.auth_type };
+  }
+
+  /** Models of a shared connection the consumer may route to (empty when not usable). */
+  private async sharedRouteModels(tenantId: string, route: ModelRoute): Promise<string[]> {
+    const models = await this.sharedConnections?.modelsFor(tenantId, route.sharedConnectionId!);
+    return (models ?? []).map((m) => m.id);
+  }
 
   /**
    * Returns the ordered list of API keys for (tenant, provider, authType),
@@ -168,6 +206,9 @@ export class ProviderKeyService {
     agentId?: string,
   ): Promise<boolean> {
     if (!route.provider) return false;
+    if (route.sharedConnectionId) {
+      return (await this.selectSharedProviderKey(tenantId, route.sharedConnectionId)) !== null;
+    }
     const keys = await this.getProviderKeys(tenantId, route.provider, route.authType, agentId);
     return keys.length > 0;
   }
@@ -419,6 +460,13 @@ export class ProviderKeyService {
     if (!route.provider) {
       return this.isModelAvailable(tenantId, route.model, agentId);
     }
+    if (route.sharedConnectionId) {
+      const ids = await this.sharedRouteModels(tenantId, route);
+      return (
+        ids.includes(route.model) ||
+        resolveNewerModelVariant(route.provider, route.model, ids) !== null
+      );
+    }
     const providerNames = expandProviderNames([route.provider]);
     const discovered = await this.discoveryService.getModelsForAgent(tenantId, agentId);
     const connectionModels = discovered.filter(
@@ -472,6 +520,12 @@ export class ProviderKeyService {
     agentId?: string,
   ): Promise<ModelRoute> {
     if (!route.provider) return route;
+    if (route.sharedConnectionId) {
+      const ids = await this.sharedRouteModels(tenantId, route);
+      if (ids.includes(route.model)) return route;
+      const replacement = resolveNewerModelVariant(route.provider, route.model, ids);
+      return replacement ? { ...route, model: replacement } : route;
+    }
     const providerNames = expandProviderNames([route.provider]);
     const models = await this.discoveryService.getModelsForAgent(tenantId, agentId);
     const available = models.filter(

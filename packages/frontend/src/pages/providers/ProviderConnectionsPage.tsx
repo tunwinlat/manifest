@@ -46,6 +46,7 @@ import {
 } from '../../services/api/analytics.js';
 import '../../styles/routing.css';
 import '../../styles/analytics-overview.css';
+import ShareSwitch from '../../components/ShareSwitch.jsx';
 
 type ProviderPageKind = 'subscriptions' | 'byok' | 'local';
 type ViewMode = 'list' | 'grid';
@@ -644,6 +645,12 @@ const ProviderConnectionsPage: Component<ProviderConnectionsPageProps> = (props)
                       <InfoTooltip text={CONNECTION_SUCCESS_RATE_TOOLTIP_30D} />
                     </th>
                     <th>Last used</th>
+                    <Show when={props.kind === 'subscriptions'}>
+                      <th>
+                        Share
+                        <InfoTooltip text="Let the other users of this Manifest route their harnesses through this subscription. Your credential stays in your account." />
+                      </th>
+                    </Show>
                     <th />
                   </tr>
                 </thead>
@@ -825,6 +832,15 @@ const ProviderConnectionsPage: Component<ProviderConnectionsPageProps> = (props)
                               : '-'}
                           </Show>
                         </td>
+                        <Show when={props.kind === 'subscriptions'}>
+                          <td>
+                            <ShareSwitch
+                              connectionId={row.connection.id}
+                              label={row.connection.label}
+                              shared={row.connection.is_shared === true}
+                            />
+                          </td>
+                        </Show>
                         <td style="text-align: right;">
                           <button
                             class="btn btn--outline btn--sm"

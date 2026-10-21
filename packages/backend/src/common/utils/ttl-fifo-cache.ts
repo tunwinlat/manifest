@@ -51,4 +51,8 @@ export class TtlFifoCache<K, V> {
   invalidate(key: K): void {
     this.entries.delete(key);
   }
+
+  clear(): void {
+    this.entries.clear();
+  }
 }

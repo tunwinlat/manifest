@@ -224,6 +224,13 @@ export class SpecificityService {
     models: string[],
     routes?: ModelRoute[],
   ): Promise<ModelRoute[]> {
+    // Fork: shared subscriptions are offered on default and custom routing
+    // only; task-specific routing is being retired.
+    if (routes?.some((r) => r.sharedConnectionId)) {
+      throw new BadRequestException(
+        'Shared subscriptions can only be used on default and custom routing.',
+      );
+    }
     const existing = await this.repo.findOne({ where: { agent_id: agentId, category } });
     if (!existing) return [];
     const fallbackRoutes = await this.buildFallbackRoutes(

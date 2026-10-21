@@ -22,6 +22,7 @@
 @import './feedback.css';
 @import './params-card.css';
 @import './api-bot.css';
+@import './multi-user.css';
 
 /*
  * Route-scoped stylesheets are intentionally NOT imported here. They are

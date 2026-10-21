@@ -328,6 +328,17 @@ describe('SetupService', () => {
     });
   });
 
+  describe('isSignupEnabled (fork)', () => {
+    it('is open on an empty install and follows the admin switch afterwards', async () => {
+      ds.query.mockResolvedValueOnce([{ count: '0' }]);
+      await expect(service.isSignupEnabled()).resolves.toBe(true);
+      ds.query
+        .mockResolvedValueOnce([{ count: '2' }])
+        .mockResolvedValueOnce([{ public_signup: false }]);
+      await expect(service.isSignupEnabled()).resolves.toBe(false);
+    });
+  });
+
   describe('createFirstAdmin', () => {
     const dto = { email: 'founder@example.com', name: 'Founder', password: 'secret-password' };
 
@@ -386,6 +397,19 @@ describe('SetupService', () => {
       );
       expect(updateCall).toBeDefined();
       expect(updateCall?.[1]).toEqual(['founder@example.com']);
+    });
+
+    it('makes the first user the administrator (fork)', async () => {
+      mockHappyPath();
+      (auth.api.signUpEmail as jest.Mock).mockResolvedValueOnce({});
+
+      await service.createFirstAdmin(dto);
+
+      const grant = runnerQuery.mock.calls.find(
+        (c) => typeof c[0] === 'string' && c[0].includes('INSERT INTO user_roles'),
+      );
+      expect(grant?.[0]).toContain("'admin'");
+      expect(grant?.[1]).toEqual(['founder@example.com']);
     });
 
     it('throws ConflictException when a user already exists and is verified', async () => {

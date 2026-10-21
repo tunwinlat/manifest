@@ -136,9 +136,13 @@ const RoutingHeaderTiersSection: Component<Props> = (props) => {
     provider: string,
     authType?: AuthType,
     providerKeyLabel?: string,
+    sharedConnectionId?: string,
   ): Promise<void> => {
     try {
-      await overrideHeaderTier(props.agentName(), id, model, provider, authType, providerKeyLabel);
+      const args = [props.agentName(), id, model, provider, authType, providerKeyLabel] as const;
+      await (sharedConnectionId
+        ? overrideHeaderTier(...args, undefined, sharedConnectionId)
+        : overrideHeaderTier(...args));
       await refetch();
     } catch (err) {
       toast.error(err instanceof Error ? err.message : 'Failed to update tier');
@@ -159,7 +163,7 @@ const RoutingHeaderTiersSection: Component<Props> = (props) => {
     if (!route || quotaToggling().has(tier.id)) return;
     setQuotaToggling((prev) => new Set(prev).add(tier.id));
     try {
-      await overrideHeaderTier(
+      const args = [
         props.agentName(),
         tier.id,
         route.model,
@@ -167,7 +171,10 @@ const RoutingHeaderTiersSection: Component<Props> = (props) => {
         route.authType,
         route.keyLabel ?? undefined,
         enabled,
-      );
+      ] as const;
+      await (route.sharedConnectionId
+        ? overrideHeaderTier(...args, route.sharedConnectionId)
+        : overrideHeaderTier(...args));
       await refetch();
       toast.success(enabled ? 'Route skipped on quota exhaustion' : 'Quota skip disabled');
     } catch (err) {
@@ -416,7 +423,9 @@ const RoutingHeaderTiersSection: Component<Props> = (props) => {
                 models={props.models()}
                 customProviders={props.customProviders()}
                 connectedProviders={props.connectedProviders()}
-                onOverride={(m, p, a, label) => handleOverride(tier.id, m, p, a, label)}
+                onOverride={(m, p, a, label, shared) =>
+                  handleOverride(tier.id, m, p, a, label, shared)
+                }
                 onQuotaSkipToggle={(enabled) => void handleQuotaSkipToggle(tier, enabled)}
                 quotaSkipPending={quotaToggling().has(tier.id)}
                 onFallbacksUpdate={(_fallbacks, updatedRoutes) =>

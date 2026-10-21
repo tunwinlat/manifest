@@ -1,10 +1,12 @@
-import { BadRequestException, Injectable } from '@nestjs/common';
+import { BadRequestException, Injectable, Optional, Inject } from '@nestjs/common';
 import { InjectRepository } from '@nestjs/typeorm';
 import { Repository } from 'typeorm';
 import { TierAssignment } from '../../entities/tier-assignment.entity';
 import { RoutingCacheService } from './routing-cache.service';
 import { ProviderService } from './provider.service';
 import { ModelDiscoveryService } from '../../model-discovery/model-discovery.service';
+import type { DiscoveredModel } from '../../model-discovery/model-fetcher';
+import { SharedConnectionService } from './shared-connection.service';
 import { randomUUID } from 'crypto';
 import type { AuthType, ModelRoute, ResponseMode } from 'manifest-shared';
 import {
@@ -19,6 +21,7 @@ import {
   describeUnresolvedModel,
   resolveFallbackRoutes,
   resolveModelRoute,
+  type ModelRouteScope,
 } from './resolve-model-route';
 import { assertStreamableResponseMode } from './response-mode-guard';
 
@@ -30,7 +33,30 @@ export class TierService {
     private readonly routingCache: RoutingCacheService,
     private readonly providerService: ProviderService,
     private readonly discoveryService: ModelDiscoveryService,
+    // Explicit token: a `T | null` parameter type carries no DI metadata.
+    @Optional()
+    @Inject(SharedConnectionService)
+    private readonly sharedConnections: SharedConnectionService | null = null,
   ) {}
+
+  /** Fork: models + scope for a write that targets another user's shared subscription. */
+  private async routeTarget(
+    tenantId: string,
+    agentId: string,
+    scope: ModelRouteScope,
+  ): Promise<{ available: DiscoveredModel[]; scope: ModelRouteScope }> {
+    if (scope.sharedConnectionId) {
+      if (!this.sharedConnections) {
+        throw new BadRequestException('Shared subscriptions are not available.');
+      }
+      const shared = await this.sharedConnections.requireRouteScope(
+        tenantId,
+        scope.sharedConnectionId,
+      );
+      return { available: shared.models, scope: shared.scope };
+    }
+    return { available: await this.discoveryService.getModelsForAgent(tenantId, agentId), scope };
+  }
 
   async hasRoutableTier(agentId: string): Promise<boolean> {
     const rows = await this.tierRepo.find({ where: { agent_id: agentId } });
@@ -98,16 +124,18 @@ export class TierService {
     authType?: AuthType,
     providerKeyLabel?: string,
     skipWhenQuotaExhausted?: boolean,
+    sharedConnectionId?: string | null,
   ): Promise<TierAssignment> {
-    const available = await this.discoveryService.getModelsForAgent(tenantId, agentId);
-    // Accept any name Manifest publishes for the model (the public
-    // `/v1/models` id, a custom model's bare name, …) and store the canonical
-    // route, so callers never have to know the internal id.
-    const resolution = resolveModelRoute(model, available, {
+    const { available, scope } = await this.routeTarget(tenantId, agentId, {
       provider,
       authType,
       keyLabel: providerKeyLabel,
+      sharedConnectionId,
     });
+    // Accept any name Manifest publishes for the model (the public
+    // `/v1/models` id, a custom model's bare name, …) and store the canonical
+    // route, so callers never have to know the internal id.
+    const resolution = resolveModelRoute(model, available, scope);
     if (!resolution.ok) {
       throw new BadRequestException(
         describeUnresolvedModel(model, resolution.reason, available, { provider, authType }),
@@ -332,7 +360,12 @@ export class TierService {
   ): Promise<ModelRoute[] | null> {
     if (models.length === 0) return null;
     const available = await this.discoveryService.getModelsForAgent(tenantId, agentId);
-    const resolution = resolveFallbackRoutes(models, available, routes, storedRoutes);
+    const sharedPools = await this.sharedConnections?.poolsForRoutes(
+      tenantId,
+      routes,
+      storedRoutes,
+    );
+    const resolution = resolveFallbackRoutes(models, available, routes, storedRoutes, sharedPools);
     if (!resolution.ok) {
       throw new BadRequestException(describeUnresolvedFallback(resolution.model));
     }

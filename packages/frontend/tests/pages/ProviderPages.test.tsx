@@ -147,6 +147,11 @@ vi.mock('../../src/components/Sparkline.jsx', () => ({
 }));
 
 const mockToastSuccess = vi.fn();
+const mockSetConnectionSharing = vi.fn();
+vi.mock('../../src/services/api/sharing.js', () => ({
+  setConnectionSharing: (...args: unknown[]) => mockSetConnectionSharing(...args),
+}));
+
 vi.mock('../../src/services/toast-store.js', () => ({
   toast: {
     success: (...args: unknown[]) => mockToastSuccess(...args),
@@ -279,6 +284,24 @@ describe('provider pages', () => {
     expect(screen.getAllByText('129').length).toBeGreaterThan(0);
     // The blended provider rate (267/317 = 84.2%) must appear nowhere.
     expect(screen.queryByText('84.2%')).toBeNull();
+  });
+
+  it('offers a Share switch on subscription connections only (fork)', async () => {
+    mockSetConnectionSharing.mockResolvedValue({ id: 'sub-openai', is_shared: true });
+    render(() => <Subscriptions />);
+    const toggle = await screen.findByRole('switch', { name: 'Share ChatGPT with other users' });
+    expect(toggle.getAttribute('aria-checked')).toBe('false');
+    fireEvent.click(toggle);
+    await waitFor(() => expect(mockSetConnectionSharing).toHaveBeenCalledWith('sub-openai', true));
+    // Rows rebuild as data lands; the switch keeps its state across that.
+    await waitFor(() =>
+      expect(
+        screen
+          .getByRole('switch', { name: 'Share ChatGPT with other users' })
+          .getAttribute('aria-checked'),
+      ).toBe('true'),
+    );
+    expect(mockNavigate).not.toHaveBeenCalledWith('/providers/connections/sub-openai');
   });
 
   it('renders the subscriptions page and opens the connect modal', async () => {

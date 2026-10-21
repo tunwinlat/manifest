@@ -50,6 +50,12 @@ export type ResolvedRouteCredentials =
       providerRegion?: string | null;
       tenantProviderId: string | null;
       /**
+       * Tenant that owns the selected connection. The caller's own tenant,
+       * except for a subscription another user shared (fork): OAuth refresh
+       * must then update the owner's row, so it runs against this tenant.
+       */
+      credentialTenantId: string;
+      /**
        * Label of the `tenant_providers` row that was actually selected — the
        * same row `tenantProviderId` points at, never the requested pin. A pin
        * that matched nothing falls back to the default key, and the recorded
@@ -72,7 +78,10 @@ export interface CredentialFailurePresentation {
 }
 
 export interface RouteCredentialDeps {
-  providerKeyService: Pick<ProviderKeyService, 'selectProviderKey' | 'getProviderApiKey'>;
+  providerKeyService: Pick<
+    ProviderKeyService,
+    'selectProviderKey' | 'getProviderApiKey' | 'selectSharedProviderKey'
+  >;
   oauth: OAuthServiceSet;
 }
 
@@ -211,21 +220,40 @@ export async function resolveRouteCredentials(
     provider: string;
     authType?: AuthType;
     providerKeyLabel?: string;
+    /** Fork: route through another user's shared subscription (`tenant_providers.id`). */
+    sharedConnectionId?: string | null;
   },
 ): Promise<ResolvedRouteCredentials> {
   const { providerKeyService, oauth } = deps;
-  const { agentId, tenantId, provider, authType } = args;
+  const { agentId, authType } = args;
+  let { tenantId, provider } = args;
   let providerKeyLabel = args.providerKeyLabel;
+  // Agent-scoped lookups only make sense inside the harness's own tenant.
+  let lookupAgentId: string | undefined = agentId;
 
   // Single key selection per hop: apiKey, tenant_provider_id, region, and
   // label all come from this one row so they can never diverge.
-  const key = await providerKeyService.selectProviderKey(
-    tenantId,
-    provider,
-    authType,
-    providerKeyLabel,
-    agentId,
-  );
+  let key;
+  if (args.sharedConnectionId) {
+    const shared = await providerKeyService.selectSharedProviderKey(
+      tenantId,
+      args.sharedConnectionId,
+    );
+    if (!shared) return { ok: false, reason: 'no_provider_key', tenantProviderId: null };
+    key = shared.key;
+    tenantId = shared.ownerTenantId;
+    provider = shared.provider;
+    providerKeyLabel = shared.key.label;
+    lookupAgentId = undefined;
+  } else {
+    key = await providerKeyService.selectProviderKey(
+      tenantId,
+      provider,
+      authType,
+      providerKeyLabel,
+      agentId,
+    );
+  }
   if (!key || key.apiKey === null) {
     return { ok: false, reason: 'no_provider_key', tenantProviderId: null };
   }
@@ -275,7 +303,7 @@ export async function resolveRouteCredentials(
         provider,
         authType,
         providerKeyLabel,
-        agentId,
+        lookupAgentId,
       )) ?? apiKey;
   }
 
@@ -286,6 +314,7 @@ export async function resolveRouteCredentials(
     resourceUrl: unwrapped.resourceUrl,
     providerRegion: key.region,
     tenantProviderId,
+    credentialTenantId: tenantId,
     // The selected row's own label, not `args.providerKeyLabel`: selection may
     // have fallen back to the default key when the pin matched nothing.
     keyLabel: key.label,

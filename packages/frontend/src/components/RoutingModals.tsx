@@ -19,6 +19,7 @@ import type {
   ResponseMode,
 } from '../services/api.js';
 import type { CustomProviderPrefill, ProviderDeepLink } from '../services/routing-params.js';
+import type { SharedConnection } from '../services/api/sharing.js';
 import {
   activeRouteKeys,
   availableRouteKeysForModel,
@@ -69,6 +70,10 @@ interface RoutingModalsProps {
   onProviderUpdate: () => Promise<void>;
   onProviderPoll?: () => Promise<void>;
   onOpenProviderModal?: () => void;
+  /** Fork: subscriptions other users share, offered on default/custom routing. */
+  sharedConnections?: () => SharedConnection[];
+  onSharedOverride?: (tierId: string, modelName: string, connection: SharedConnection) => void;
+  onSharedFallback?: (tierId: string, modelName: string, connection: SharedConnection) => void;
 }
 
 interface PendingOverride {
@@ -161,6 +166,8 @@ const RoutingModals: Component<RoutingModalsProps> = (props) => {
               connectedProviders={props.connectedProviders()}
               requiredCapability={requiredCapabilityForTier(tierId())}
               onSelect={handleSelect}
+              sharedConnections={props.sharedConnections?.()}
+              onSelectShared={props.onSharedOverride}
               onClose={props.onDropdownClose}
               onConnectProviders={() => {
                 props.onDropdownClose();
@@ -299,6 +306,14 @@ const RoutingModals: Component<RoutingModalsProps> = (props) => {
                 connectedProviders={props.connectedProviders()}
                 requiredCapability={requiredCapabilityForTier(tierId())}
                 onSelect={handleFallbackSelect}
+                sharedConnections={props.sharedConnections?.()}
+                onSelectShared={
+                  props.onSharedFallback &&
+                  ((tid, model, connection) => {
+                    props.onFallbackPickerClose();
+                    props.onSharedFallback?.(tid, model, connection);
+                  })
+                }
                 onClose={props.onFallbackPickerClose}
                 onConnectProviders={() => {
                   props.onFallbackPickerClose();

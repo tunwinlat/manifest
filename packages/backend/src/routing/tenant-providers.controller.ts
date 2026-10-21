@@ -5,6 +5,7 @@ import {
   Get,
   Inject,
   NotFoundException,
+  Optional,
   Param,
   Patch,
   Post,
@@ -22,11 +23,14 @@ import { filterProvidersForDeployment } from '../common/utils/provider-availabil
 import { ProviderService } from './routing-core/provider.service';
 import { RoutingCacheService } from './routing-core/routing-cache.service';
 import { ModelDiscoveryService } from '../model-discovery/model-discovery.service';
+import { SharedConnectionService } from './routing-core/shared-connection.service';
 import {
+  ConnectionIdParamDto,
   ProviderKeyParamDto,
   ProviderParamDto,
   RemoveProviderQueryDto,
   RenameProviderKeyDto,
+  SetConnectionSharingDto,
 } from './dto/routing.dto';
 
 /**
@@ -56,6 +60,7 @@ export class TenantProvidersController {
     private readonly discoveryService: ModelDiscoveryService,
     private readonly routingCache: RoutingCacheService,
     @Inject(CACHE_MANAGER) private readonly cacheManager: Cache,
+    @Optional() private readonly sharedConnections?: SharedConnectionService,
   ) {}
 
   private requireTenant(ctx: TenantContext): string {
@@ -69,6 +74,56 @@ export class TenantProvidersController {
       this.routingCache.invalidateAgent(agentId);
     }
     this.routingCache.invalidateTenant(tenantId);
+    // Other users may route through this tenant's shared subscriptions.
+    this.sharedConnections?.invalidate();
+  }
+
+  /**
+   * Fork: subscriptions other users of this install share with the caller,
+   * with the models each one offers for harness routing.
+   */
+  @Get('shared')
+  async listSharedWithMe(@TenantCtx() ctx: TenantContext) {
+    if (!ctx.tenantId || !this.sharedConnections) return { connections: [] };
+    const connections = await this.sharedConnections.listForConsumer(ctx.tenantId);
+    return {
+      connections: connections.map((c) => ({
+        id: c.id,
+        provider: c.provider,
+        auth_type: c.authType,
+        label: c.label,
+        owner_name: c.ownerName,
+        owner_email: c.ownerEmail,
+        models: c.models.map((m) => ({
+          model_name: m.id,
+          display_name: m.displayName,
+          provider: m.provider,
+          auth_type: m.authType ?? c.authType,
+          context_window: m.contextWindow,
+          capability_reasoning: m.capabilityReasoning,
+          capability_code: m.capabilityCode,
+          quality_score: m.qualityScore,
+        })),
+      })),
+    };
+  }
+
+  /** Fork: the owner turns sharing of one subscription connection on or off. */
+  @Patch('connections/:connectionId/sharing')
+  async setSharing(
+    @TenantCtx() ctx: TenantContext,
+    @Param() params: ConnectionIdParamDto,
+    @Body() body: SetConnectionSharingDto,
+  ) {
+    const tenantId = this.requireTenant(ctx);
+    if (!this.sharedConnections) throw new NotFoundException('Connection not found');
+    const shared = await this.sharedConnections.setShared(
+      tenantId,
+      params.connectionId,
+      body.shared,
+    );
+    await this.cacheManager.clear();
+    return { id: params.connectionId, is_shared: shared };
   }
 
   @Post('refresh-models')
@@ -152,6 +207,7 @@ export class TenantProvidersController {
           models_fetched_at: string | null;
           cached_model_count: number;
           is_active: boolean;
+          is_shared: boolean;
         }>;
         total_models: number;
       }
@@ -172,6 +228,7 @@ export class TenantProvidersController {
           models_fetched_at: p.models_fetched_at,
           cached_model_count: modelCount,
           is_active: p.is_active,
+          is_shared: p.is_shared === true,
         });
         existing.total_models = Math.max(existing.total_models, modelCount);
       } else {
@@ -188,6 +245,7 @@ export class TenantProvidersController {
               models_fetched_at: p.models_fetched_at,
               cached_model_count: modelCount,
               is_active: p.is_active,
+              is_shared: p.is_shared === true,
             },
           ],
           total_models: modelCount,

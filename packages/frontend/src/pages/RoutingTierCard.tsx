@@ -27,6 +27,7 @@ import type {
   RoutingProvider,
   CustomProviderData,
 } from '../services/api.js';
+import SharedRouteChip from '../components/SharedRouteChip.jsx';
 
 /** @internal Exported for testing only. */
 export function providerIdForModel(model: string, apiModels: AvailableModel[]): string | undefined {
@@ -85,6 +86,7 @@ export interface RoutingTierCardProps {
     authType?: AuthType,
     providerKeyLabel?: string,
     skipWhenQuotaExhausted?: boolean,
+    sharedConnectionId?: string,
   ) => void;
   onPinKey?: (
     tierId: string,
@@ -320,7 +322,18 @@ const RoutingTierCard: Component<RoutingTierCardProps> = (props) => {
     const provId = fbRoute?.provider ?? providerIdForModel(fbModel, props.models());
     try {
       const skipWhenQuotaExhausted = fbRoute?.skipWhenQuotaExhausted;
-      if (skipWhenQuotaExhausted === undefined) {
+      if (fbRoute?.sharedConnectionId) {
+        // Fork: a shared fallback promoted to primary keeps its connection.
+        await props.onOverride(
+          props.stage.id,
+          fbModel,
+          provId ?? '',
+          fbRoute.authType,
+          fbRoute.keyLabel ?? undefined,
+          skipWhenQuotaExhausted,
+          fbRoute.sharedConnectionId,
+        );
+      } else if (skipWhenQuotaExhausted === undefined) {
         await props.onOverride(
           props.stage.id,
           fbModel,
@@ -554,6 +567,7 @@ const RoutingTierCard: Component<RoutingTierCardProps> = (props) => {
                           </div>
                         </div>
                         <div style="display: flex; align-items: center; gap: 4px; flex-shrink: 0;">
+                          <SharedRouteChip route={props.tier()?.override_route} />
                           <PrimaryKeyChip
                             tier={props.tier}
                             provId={provId}
@@ -756,6 +770,8 @@ const PrimaryKeyChip: Component<PrimaryKeyChipProps> = (props) => {
     const id = props.provId();
     const auth = props.effectiveAuth();
     if (!id || !auth || auth === 'local') return [];
+    // Fork: a shared primary runs on another user's connection.
+    if (props.tier()?.override_route?.sharedConnectionId) return [];
     return props
       .connectedProviders()
       .filter(

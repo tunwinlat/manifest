@@ -92,6 +92,8 @@ export class AgentEnabledProvidersController {
     const providerLabel = provider.label?.toLowerCase();
     const routeBelongsToDisabledProvider = (route: ModelRoute | null): boolean => {
       if (!route) return false;
+      // Fork: shared routes run on another user's connection, not this one.
+      if (route.sharedConnectionId) return false;
       if (route.provider) {
         if (route.provider.toLowerCase() !== providerName) return false;
         if (route.authType && route.authType !== providerAuthType) return false;

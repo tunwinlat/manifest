@@ -12,6 +12,8 @@ export * from './api/model-params.js';
 export * from './api/playground.js';
 export * from './api/content-guardrails.js';
 export * from './api/version.js';
+export * from './api/admin.js';
+export * from './api/sharing.js';
 export {
   getProviders as getGlobalProviders,
   getProviderUsage as getGlobalProviderUsage,

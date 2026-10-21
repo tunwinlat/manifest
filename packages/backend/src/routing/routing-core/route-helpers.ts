@@ -101,7 +101,7 @@ export function subscriptionPreferredRoute(
 }
 
 /**
- * Strict equality on (provider, authType, model, keyLabel). Used for tier-card
+ * Strict equality on (provider, authType, model, keyLabel, sharedConnectionId). Used for tier-card
  * dedup where the same model with two different keys must NOT collide.
  *
  * keyLabel is normalized: nullish/empty/whitespace all collapse to null, and
@@ -112,6 +112,7 @@ export function routeMatches(a: ModelRoute, b: ModelRoute): boolean {
   if (a.provider.toLowerCase() !== b.provider.toLowerCase()) return false;
   if (a.authType !== b.authType) return false;
   if (a.model !== b.model) return false;
+  if ((a.sharedConnectionId ?? null) !== (b.sharedConnectionId ?? null)) return false;
   return normalizeKeyLabel(a.keyLabel) === normalizeKeyLabel(b.keyLabel);
 }
 

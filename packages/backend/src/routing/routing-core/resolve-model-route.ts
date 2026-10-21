@@ -8,7 +8,19 @@ export interface ModelRouteScope {
   provider?: string;
   authType?: AuthType;
   keyLabel?: string | null;
+  /** Fork: the route runs on this shared subscription (`available` holds its models). */
+  sharedConnectionId?: string | null;
 }
+
+/**
+ * Fork: the models and label of each shared subscription named by a route
+ * write, keyed by connection id. A route naming a connection missing from the
+ * map does not resolve.
+ */
+export type SharedRoutePools = ReadonlyMap<
+  string,
+  { models: readonly DiscoveredModel[]; label: string }
+>;
 
 export type UnresolvedReason = 'not_found' | 'wrong_provider' | 'wrong_auth_type' | 'ambiguous';
 
@@ -66,7 +78,9 @@ export function resolveModelRoute(
     authType: match.authType!,
     model: match.id,
   };
-  return { ok: true, route: scope.keyLabel ? { ...route, keyLabel: scope.keyLabel } : route };
+  if (scope.keyLabel) route.keyLabel = scope.keyLabel;
+  if (scope.sharedConnectionId) route.sharedConnectionId = scope.sharedConnectionId;
+  return { ok: true, route };
 }
 
 /**
@@ -83,13 +97,20 @@ export function resolveFallbackRoutes(
   available: readonly DiscoveredModel[],
   routes?: readonly ModelRoute[],
   storedRoutes?: readonly ModelRoute[] | null,
+  sharedPools?: SharedRoutePools,
 ): FallbackRoutesResolution {
   const aligned =
     routes !== undefined &&
     routes.length === models.length &&
     routes.every((r, i) => r.model === models[i]);
-  const fromRoutes = aligned ? resolveGivenRoutes(routes, available, storedRoutes) : null;
+  const fromRoutes = aligned
+    ? resolveGivenRoutes(routes, available, storedRoutes, sharedPools)
+    : null;
   if (fromRoutes) return { ok: true, routes: fromRoutes };
+  // Fork: a shared route must never fall through to name-only resolution,
+  // which would silently move it onto one of the caller's own connections.
+  const sharedRoute = aligned ? routes.find((r) => r.sharedConnectionId) : undefined;
+  if (sharedRoute) return { ok: false, model: sharedRoute.model };
 
   const pool = [...(storedRoutes ?? [])];
   const resolved: ModelRoute[] = [];
@@ -111,6 +132,7 @@ function resolveGivenRoutes(
   routes: readonly ModelRoute[],
   available: readonly DiscoveredModel[],
   storedRoutes?: readonly ModelRoute[] | null,
+  sharedPools?: SharedRoutePools,
 ): ModelRoute[] | null {
   const pool = [...(storedRoutes ?? [])];
   const resolved: ModelRoute[] = [];
@@ -119,6 +141,19 @@ function resolveGivenRoutes(
     if (kept >= 0) {
       pool.splice(kept, 1);
       resolved.push(route);
+      continue;
+    }
+    if (route.sharedConnectionId) {
+      const sharedPool = sharedPools?.get(route.sharedConnectionId);
+      if (!sharedPool) return null;
+      const shared = resolveModelRoute(route.model, sharedPool.models, {
+        provider: route.provider,
+        authType: route.authType,
+        keyLabel: sharedPool.label,
+        sharedConnectionId: route.sharedConnectionId,
+      });
+      if (!shared.ok) return null;
+      resolved.push(shared.route);
       continue;
     }
     const resolution = resolveModelRoute(route.model, available, {

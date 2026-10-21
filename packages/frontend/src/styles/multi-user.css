@@ -1,0 +1,71 @@
+/* Fork: multi-user — Administration → Users and shared subscriptions. */
+
+.admin-users__table td {
+  vertical-align: middle;
+}
+
+.admin-users__name {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  font-weight: 500;
+  color: hsl(var(--foreground));
+}
+
+.admin-users__email,
+.admin-users__shared,
+.admin-users__empty {
+  font-size: var(--font-size-sm);
+  color: hsl(var(--muted-foreground));
+}
+
+.admin-users__empty {
+  margin: 0;
+}
+
+.admin-users__actions {
+  display: flex;
+  justify-content: flex-end;
+  gap: 8px;
+}
+
+.admin-users__checkbox {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  margin-top: var(--gap-md);
+  font-size: var(--font-size-sm);
+  color: hsl(var(--foreground));
+  cursor: pointer;
+}
+
+/* "Shared by …" marker on routes and picker rows. */
+.shared-chip {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  max-width: 100%;
+  padding: 1px 8px;
+  border-radius: 9999px;
+  font-size: var(--font-size-xs);
+  font-weight: 500;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  background: hsl(var(--chart-2) / 0.12);
+  color: hsl(var(--chart-2));
+}
+
+.shared-chip--unavailable {
+  background: hsl(var(--destructive) / 0.1);
+  color: hsl(var(--destructive));
+}
+
+/* Share toggle on a subscription connection. */
+.connection-share {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  font-size: var(--font-size-sm);
+  color: hsl(var(--muted-foreground));
+}

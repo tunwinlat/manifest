@@ -50,6 +50,28 @@ export class ModelRouteDto {
   @IsOptional()
   @IsBoolean()
   skipWhenQuotaExhausted?: boolean;
+
+  // Fork: route through a subscription another user shared (its
+  // `tenant_providers.id`). The server re-derives provider, auth type and
+  // label from the connection itself.
+  @IsOptional()
+  @IsString()
+  @IsNotEmpty()
+  @MaxLength(64)
+  sharedConnectionId?: string;
+}
+
+/** Fork: `PATCH /api/v1/providers/connections/:connectionId/sharing`. */
+export class ConnectionIdParamDto {
+  @IsString()
+  @IsNotEmpty()
+  @MaxLength(64)
+  connectionId!: string;
+}
+
+export class SetConnectionSharingDto {
+  @IsBoolean()
+  shared!: boolean;
 }
 
 export class AgentNameParamDto {

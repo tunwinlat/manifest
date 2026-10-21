@@ -117,6 +117,7 @@ describe('TierController', () => {
       undefined,
       undefined,
       undefined,
+      undefined,
     );
   });
 
@@ -143,6 +144,7 @@ describe('TierController', () => {
       'subscription',
       undefined,
       true,
+      undefined,
     );
   });
 

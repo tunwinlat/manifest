@@ -35,6 +35,9 @@ import QuotaSkipToggle from './QuotaSkipToggle.js';
 import KeyPickerModal from './KeyPickerModal.js';
 import { toast } from '../services/toast-store.js';
 import { modelParamsScopeForHeaderTier } from 'manifest-shared';
+import SharedRouteChip from './SharedRouteChip.jsx';
+import { sharedConnections } from '../services/shared-connections.js';
+import type { SharedConnection } from '../services/api/sharing.js';
 
 function providerIdForModel(model: string, apiModels: AvailableModel[]): string | undefined {
   const m =
@@ -72,6 +75,7 @@ interface Props {
     provider: string,
     authType?: AuthType,
     providerKeyLabel?: string,
+    sharedConnectionId?: string,
   ) => void | Promise<void>;
   /**
    * Persist the per-route quota-skip flag on the tier's override route.
@@ -180,6 +184,8 @@ const HeaderTierCard: Component<Props> = (props) => {
     const id = providerId();
     const auth = effectiveAuth();
     if (!id || !auth || auth === 'local') return [];
+    // Fork: a shared primary runs on another user's connection.
+    if (props.tier.override_route?.sharedConnectionId) return [];
     return activeRouteKeys(props.connectedProviders, id, auth);
   };
 
@@ -196,6 +202,7 @@ const HeaderTierCard: Component<Props> = (props) => {
     provider: string,
     authType: AuthType | undefined,
     keyLabel?: string,
+    sharedConnectionId?: string,
   ): Promise<void> => {
     const next = [...fallbacks(), model];
     const currentRoutes = props.tier.fallback_routes ?? [];
@@ -203,6 +210,7 @@ const HeaderTierCard: Component<Props> = (props) => {
     const nextRoute: ModelRoute = keyLabel
       ? { provider, authType: effectiveAuth, model, keyLabel }
       : { provider, authType: effectiveAuth, model };
+    if (sharedConnectionId) nextRoute.sharedConnectionId = sharedConnectionId;
     const nextRoutes = [...currentRoutes, nextRoute];
     try {
       await setHeaderTierFallbacks(props.agentName, props.tier.id, next, nextRoutes);
@@ -256,6 +264,33 @@ const HeaderTierCard: Component<Props> = (props) => {
       return;
     }
     setPendingKeyPick({ mode, model, provider, authType, keys: selection.keys });
+  };
+
+  /** Fork: a model picked from the "Shared with me" tab. */
+  const handleSharedSelect = async (
+    _tierId: string,
+    model: string,
+    connection: SharedConnection,
+  ): Promise<void> => {
+    const mode = pickerMode();
+    setPickerMode(null);
+    if (mode === 'primary') {
+      await props.onOverride(
+        model,
+        connection.provider,
+        connection.auth_type,
+        connection.label,
+        connection.id,
+      );
+    } else if (mode) {
+      await addFallbackRoute(
+        model,
+        connection.provider,
+        connection.auth_type,
+        connection.label,
+        connection.id,
+      );
+    }
   };
 
   const handlePendingKeyPick = (label: string | null): void => {
@@ -441,6 +476,7 @@ const HeaderTierCard: Component<Props> = (props) => {
                   <span class="routing-card__main">{modelLabel() || modelName()}</span>
                 </div>
                 <div style="display: flex; align-items: center; gap: 4px; flex-shrink: 0;">
+                  <SharedRouteChip route={props.tier.override_route} />
                   <Show when={primaryKeys().length > 1}>
                     <RouteKeyChip
                       keys={primaryKeys()}
@@ -576,6 +612,10 @@ const HeaderTierCard: Component<Props> = (props) => {
           requiredCapability={props.tier.response_mode === 'stream' ? 'stream' : undefined}
           onClose={() => setPickerMode(null)}
           onSelect={handlePickerSelect}
+          sharedConnections={(sharedConnections() ?? []).filter((c) => c.models.length > 0)}
+          onSelectShared={(tierId, model, connection) =>
+            void handleSharedSelect(tierId, model, connection)
+          }
         />
       </Show>
 

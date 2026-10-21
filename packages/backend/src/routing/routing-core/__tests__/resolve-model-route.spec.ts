@@ -255,3 +255,52 @@ describe('resolveFallbackRoutes', () => {
     );
   });
 });
+
+describe('shared subscription routes (fork)', () => {
+  const sharedModels = [model('claude-sonnet-4-5', 'anthropic', 'subscription')];
+  const pools = new Map([['conn-1', { models: sharedModels, label: 'Work' }]]);
+  const shared: ModelRoute = {
+    provider: 'anthropic',
+    authType: 'subscription',
+    model: 'claude-sonnet-4-5',
+    sharedConnectionId: 'conn-1',
+  };
+
+  it('stamps the shared connection and its label on the resolved route', () => {
+    expect(
+      resolveModelRoute('claude-sonnet-4-5', sharedModels, {
+        provider: 'anthropic',
+        authType: 'subscription',
+        keyLabel: 'Work',
+        sharedConnectionId: 'conn-1',
+      }),
+    ).toEqual({ ok: true, route: { ...shared, keyLabel: 'Work' } });
+  });
+
+  it('resolves a shared fallback against its own connection, not the harness models', () => {
+    expect(resolveFallbackRoutes(['claude-sonnet-4-5'], available, [shared], null, pools)).toEqual({
+      ok: true,
+      routes: [{ ...shared, keyLabel: 'Work' }],
+    });
+  });
+
+  it('rejects a shared fallback whose connection is not shared or lacks the model', () => {
+    expect(resolveFallbackRoutes(['claude-sonnet-4-5'], available, [shared], null)).toEqual({
+      ok: false,
+      model: 'claude-sonnet-4-5',
+    });
+    const missing = { ...shared, model: 'gpt-5' };
+    expect(resolveFallbackRoutes(['gpt-5'], available, [missing], null, pools)).toEqual({
+      ok: false,
+      model: 'gpt-5',
+    });
+  });
+
+  it('keeps a carried-over shared route without re-validating it', () => {
+    const stored = [{ ...shared, keyLabel: 'Work' }];
+    expect(resolveFallbackRoutes(['claude-sonnet-4-5'], available, stored, stored)).toEqual({
+      ok: true,
+      routes: stored,
+    });
+  });
+});

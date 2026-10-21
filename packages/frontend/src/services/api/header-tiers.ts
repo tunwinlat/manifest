@@ -110,6 +110,8 @@ export function overrideHeaderTier(
   authType?: AuthType,
   providerKeyLabel?: string,
   skipWhenQuotaExhausted?: boolean,
+  /** Fork: route through a subscription another user shared. */
+  sharedConnectionId?: string | null,
 ) {
   const body: Record<string, unknown> = { model, provider };
   if (authType) {
@@ -122,6 +124,7 @@ export function overrideHeaderTier(
     if (skipWhenQuotaExhausted !== undefined) {
       route.skipWhenQuotaExhausted = skipWhenQuotaExhausted;
     }
+    if (sharedConnectionId) route.sharedConnectionId = sharedConnectionId;
     body.route = route;
   }
   if (providerKeyLabel) body.providerKeyLabel = providerKeyLabel;
