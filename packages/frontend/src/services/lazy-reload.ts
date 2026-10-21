@@ -8,7 +8,8 @@ const RELOAD_KEY = 'manifest:chunk-reload';
  * infinite reload loops — if the reload itself fails, the error
  * propagates normally.
  */
-export function lazyReload<T extends Component>(
+// eslint-disable-next-line @typescript-eslint/no-explicit-any -- same bound as solid-js `lazy`
+export function lazyReload<T extends Component<any>>(
   factory: () => Promise<{ default: T }>,
 ): ReturnType<typeof lazy<T>> {
   return lazy(() =>

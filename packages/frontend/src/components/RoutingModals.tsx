@@ -1,4 +1,5 @@
-import { Show, Suspense, createSignal, lazy, type Accessor, type Component } from 'solid-js';
+import { Show, Suspense, createSignal, type Accessor, type Component } from 'solid-js';
+import { lazyReload } from '../services/lazy-reload.js';
 import { useNavigate } from '@solidjs/router';
 import RoutingInstructionModal from './RoutingInstructionModal.js';
 import KeyPickerModal from './KeyPickerModal.js';
@@ -6,7 +7,7 @@ import KeyPickerModal from './KeyPickerModal.js';
 // These modals only mount behind a `<Show>` (dropdown open / provider modal
 // open). Lazy-load them so the heavy model picker and the ~130 kB
 // provider-select chunk stay out of the Routing route's initial bundle.
-const ModelPickerModal = lazy(() => import('./ModelPickerModal.js'));
+const ModelPickerModal = lazyReload(() => import('./ModelPickerModal.js'));
 import { PROVIDERS } from '../services/providers.js';
 import type {
   TierAssignment,

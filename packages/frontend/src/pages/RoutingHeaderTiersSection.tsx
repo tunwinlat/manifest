@@ -2,18 +2,18 @@ import {
   createResource,
   createSignal,
   For,
-  lazy,
   Show,
   Suspense,
   type Accessor,
   type Component,
 } from 'solid-js';
+import { lazyReload } from '../services/lazy-reload.js';
 import HeaderTierCard from '../components/HeaderTierCard.js';
 import HeaderTierSnippetModal from '../components/HeaderTierSnippetModal.js';
 
 // The create/edit header-tier modal only mounts behind a `<Show>` (click).
 // Lazy-load it so the Routing route's custom-tiers section stays lean.
-const HeaderTierModal = lazy(() => import('../components/HeaderTierModal.js'));
+const HeaderTierModal = lazyReload(() => import('../components/HeaderTierModal.js'));
 import {
   listHeaderTiers,
   deleteHeaderTier,
