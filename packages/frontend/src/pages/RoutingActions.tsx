@@ -41,11 +41,22 @@ export function createRoutingActions(input: RoutingActionsInput) {
     authType?: AuthType,
     providerKeyLabel?: string,
     skipWhenQuotaExhausted?: boolean,
+    sharedConnectionId?: string,
   ) => {
     setChangingTier(tierId);
     try {
-      const updated =
-        skipWhenQuotaExhausted === undefined
+      const updated = sharedConnectionId
+        ? await overrideTier(
+            input.agentName(),
+            tierId,
+            modelName,
+            providerId,
+            authType,
+            providerKeyLabel,
+            skipWhenQuotaExhausted,
+            sharedConnectionId,
+          )
+        : skipWhenQuotaExhausted === undefined
           ? await overrideTier(
               input.agentName(),
               tierId,
@@ -82,7 +93,8 @@ export function createRoutingActions(input: RoutingActionsInput) {
                   r.model === primary.model &&
                   r.provider.toLowerCase() === primary.provider.toLowerCase() &&
                   r.authType === primary.authType &&
-                  (r.keyLabel ?? null) === (primary.keyLabel ?? null)
+                  (r.keyLabel ?? null) === (primary.keyLabel ?? null) &&
+                  (r.sharedConnectionId ?? null) === (primary.sharedConnectionId ?? null)
                 ),
             )
           : routes;
@@ -154,7 +166,7 @@ export function createRoutingActions(input: RoutingActionsInput) {
     if (!tier || !route) return;
     setChangingTier(tierId);
     try {
-      const updated = await overrideTier(
+      const args = [
         input.agentName(),
         tierId,
         route.model,
@@ -162,7 +174,11 @@ export function createRoutingActions(input: RoutingActionsInput) {
         route.authType,
         route.keyLabel ?? undefined,
         enabled,
-      );
+      ] as const;
+      // Fork: a shared route must keep its connection when re-sent.
+      const updated = route.sharedConnectionId
+        ? await overrideTier(...args, route.sharedConnectionId)
+        : await overrideTier(...args);
       input.mutateTiers((prev) => prev?.map((t) => (t.tier === tierId ? updated : t)));
       toast.success(enabled ? 'Route skipped on quota exhaustion' : 'Quota skip disabled');
     } catch {
@@ -212,6 +228,7 @@ export function createRoutingActions(input: RoutingActionsInput) {
     providerId: string,
     authType?: AuthType,
     providerKeyLabel?: string,
+    sharedConnectionId?: string,
   ) => {
     const tier = getTier(tierId);
     const currentRoutes = tier?.fallback_routes ?? [];
@@ -235,6 +252,7 @@ export function createRoutingActions(input: RoutingActionsInput) {
           keyLabel: providerKeyLabel,
         }
       : { provider: providerId, authType: effectiveAuth, model: modelName };
+    if (sharedConnectionId) newRoute.sharedConnectionId = sharedConnectionId;
     // Dedupe against existing fallbacks on the full route tuple. Same model
     // on a different (provider, authType, keyLabel) is intentionally still
     // allowed — the primary blocks one slot, fallbacks can fill the rest.
@@ -243,7 +261,8 @@ export function createRoutingActions(input: RoutingActionsInput) {
         r.provider.toLowerCase() === newRoute.provider.toLowerCase() &&
         r.authType === newRoute.authType &&
         r.model === newRoute.model &&
-        (r.keyLabel ?? null) === (newRoute.keyLabel ?? null),
+        (r.keyLabel ?? null) === (newRoute.keyLabel ?? null) &&
+        (r.sharedConnectionId ?? null) === (newRoute.sharedConnectionId ?? null),
     );
     if (isDuplicate) return;
     const updatedRoutes = [...currentRoutes, newRoute];

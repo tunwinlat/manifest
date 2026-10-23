@@ -35,7 +35,7 @@ const CliAuth = lazyReload(() => import('./pages/CliAuth.jsx'));
 const Consent = lazyReload(() => import('./pages/Consent.jsx'));
 const OauthError = lazyReload(() => import('./pages/OauthError.jsx'));
 const Login = lazyReload(() => import('./pages/Login.jsx'));
-const Register = lazyReload(() => import('./pages/Register.jsx'));
+const Register = lazyReload(() => import('./pages/SignupGate.jsx'));
 const ResetPassword = lazyReload(() => import('./pages/ResetPassword.jsx'));
 const Setup = lazyReload(() => import('./pages/Setup.jsx'));
 const Discovery = lazyReload(() => import('./pages/Discovery.jsx'));
@@ -50,6 +50,7 @@ const LocalProviders = lazyReload(() => import('./pages/providers/Local.jsx'));
 const ConnectionDetail = lazyReload(() => import('./pages/providers/ConnectionDetail.jsx'));
 const McpServer = lazyReload(() => import('./pages/integrations/McpServer.jsx'));
 const Cli = lazyReload(() => import('./pages/integrations/Cli.jsx'));
+const AdminUsers = lazyReload(() => import('./pages/admin/Users.jsx'));
 
 const GuestLayout: ParentComponent = (props) => (
   <GuestGuard>
@@ -102,6 +103,7 @@ render(
           <Route path="/providers/connections/:connectionId" component={ConnectionDetail} />
           <Route path="/integrations/mcp" component={McpServer} />
           <Route path="/integrations/cli" component={Cli} />
+          <Route path="/admin/users" component={AdminUsers} />
           <Route path="/harnesses/:agentName" component={AgentGuard}>
             {/* Redirects: /limits → /guardrails, /messages → global /messages */}
             <Route path="/limits" component={AgentLimitsRedirect} />

@@ -11,6 +11,8 @@ export interface TenantProviderConnection {
   models_fetched_at: string | null;
   cached_model_count: number;
   is_active: boolean;
+  /** Fork: offered to the install's other users for their harness routing. */
+  is_shared?: boolean;
 }
 
 /**

@@ -1194,6 +1194,9 @@ export class ProviderService {
     row: TenantProvider,
     match: RouteMatchOptions = {},
   ): boolean {
+    // Fork: a route on another user's shared subscription never runs on this
+    // tenant's own connections, whatever its label says.
+    if (route.sharedConnectionId) return false;
     // An unpinned route follows the provider's primary key, so it survives the
     // deletion of one key among several: only routes pinned to it are affected.
     if (match.pinnedOnly && !route.keyLabel) return false;
@@ -1387,6 +1390,8 @@ export class ProviderService {
     const routeMatchesKey = (route: ModelRoute | null): boolean => {
       if (!route) return false;
       if (!route.keyLabel) return false;
+      // Fork: a shared route's label names the owner's connection, not ours.
+      if (route.sharedConnectionId) return false;
       if (route.keyLabel.toLowerCase() !== previousLower) return false;
       if (route.provider.toLowerCase() !== providerLower) return false;
       if (route.authType !== authType) return false;

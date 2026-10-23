@@ -3,6 +3,7 @@ import { Show, createSignal, createResource, type Component } from 'solid-js';
 import { getBillingStatus } from '../services/api/billing.js';
 import { FREE_REQUEST_LIMIT_LABEL } from '../services/billing-display.js';
 import { checkIsSelfHosted, checkMcpEnabled, checkPrivacyMode } from '../services/setup-status.js';
+import { checkIsAdmin } from '../services/api/admin.js';
 import AddAgentModal from './AddAgentModal.jsx';
 import ApiBotAnnouncement from './ApiBotAnnouncement.jsx';
 
@@ -36,6 +37,8 @@ const Sidebar: Component<SidebarProps> = (props) => {
   const [mcpEnabled] = createResource(checkMcpEnabled);
   // Fork: hosted-product promos stay off in privacy mode.
   const [privacyMode] = createResource(checkPrivacyMode);
+  // Fork: the Administration section is for the install's administrators.
+  const [isAdmin] = createResource(checkIsAdmin);
   const [billing] = createResource(async () => {
     try {
       return await getBillingStatus();
@@ -172,6 +175,18 @@ const Sidebar: Component<SidebarProps> = (props) => {
       >
         Playground
       </A>
+
+      <Show when={isAdmin()}>
+        <div class="sidebar__section-label">ADMINISTRATION</div>
+        <A
+          href="/admin/users"
+          class="sidebar__link"
+          classList={{ active: isGlobalActive('/admin/users') }}
+          aria-current={isGlobalActive('/admin/users') ? 'page' : undefined}
+        >
+          Users
+        </A>
+      </Show>
 
       <div class="sidebar__spacer" />
 

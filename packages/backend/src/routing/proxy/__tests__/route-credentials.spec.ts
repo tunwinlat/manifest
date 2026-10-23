@@ -111,6 +111,7 @@ describe('route-credentials', () => {
     const providerKeyService = {
       selectProviderKey: jest.fn(),
       getProviderApiKey: jest.fn(),
+      selectSharedProviderKey: jest.fn(),
     };
 
     beforeEach(() => {
@@ -190,6 +191,7 @@ describe('route-credentials', () => {
         resourceUrl: undefined,
         providerRegion: 'us',
         tenantProviderId: 'up-1',
+        credentialTenantId: 't1',
         keyLabel: 'Work',
       });
     });
@@ -238,6 +240,76 @@ describe('route-credentials', () => {
       );
 
       expect(result).toMatchObject({ ok: true, tenantProviderId: 'up-work', keyLabel: 'Work' });
+    });
+
+    describe('shared subscriptions (fork)', () => {
+      const blob = JSON.stringify({ t: 'access', r: 'refresh', e: 0 });
+
+      it('resolves the credential in the owner tenant and refreshes it there', async () => {
+        providerKeyService.selectSharedProviderKey.mockResolvedValue({
+          key: { apiKey: blob, id: 'conn-1', region: null, label: 'Work', priority: 1 },
+          ownerTenantId: 'owner',
+          provider: 'anthropic',
+          authType: 'subscription',
+        });
+        (oauth.anthropicOauth.unwrapToken as jest.Mock).mockResolvedValue('fresh-access');
+        providerKeyService.getProviderApiKey.mockResolvedValue('rotated-blob');
+
+        const result = await resolveRouteCredentials(
+          { providerKeyService, oauth },
+          {
+            agentId: 'consumer-agent',
+            tenantId: 'consumer',
+            provider: 'anthropic',
+            authType: 'subscription',
+            providerKeyLabel: 'Stale label',
+            sharedConnectionId: 'conn-1',
+          },
+        );
+
+        expect(providerKeyService.selectSharedProviderKey).toHaveBeenCalledWith(
+          'consumer',
+          'conn-1',
+        );
+        expect(providerKeyService.selectProviderKey).not.toHaveBeenCalled();
+        expect(oauth.anthropicOauth.unwrapToken).toHaveBeenCalledWith(
+          blob,
+          'consumer-agent',
+          'owner',
+          'Work',
+        );
+        // The re-read is not filtered by the consumer's harness.
+        expect(providerKeyService.getProviderApiKey).toHaveBeenCalledWith(
+          'owner',
+          'anthropic',
+          'subscription',
+          'Work',
+          undefined,
+        );
+        expect(result).toMatchObject({
+          ok: true,
+          apiKey: 'fresh-access',
+          rawApiKey: 'rotated-blob',
+          tenantProviderId: 'conn-1',
+          credentialTenantId: 'owner',
+          keyLabel: 'Work',
+        });
+      });
+
+      it('reports no_provider_key once the owner stops sharing', async () => {
+        providerKeyService.selectSharedProviderKey.mockResolvedValue(null);
+        const result = await resolveRouteCredentials(
+          { providerKeyService, oauth },
+          {
+            agentId: 'a1',
+            tenantId: 'consumer',
+            provider: 'anthropic',
+            authType: 'subscription',
+            sharedConnectionId: 'conn-1',
+          },
+        );
+        expect(result).toEqual({ ok: false, reason: 'no_provider_key', tenantProviderId: null });
+      });
     });
   });
 });

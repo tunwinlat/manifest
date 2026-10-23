@@ -591,39 +591,15 @@ export class ModelDiscoveryService {
 
     for (const p of providers) {
       if (p.provider.startsWith('custom:')) continue;
-      const rawCached = p.cached_models;
-      if (!Array.isArray(rawCached)) continue;
-      const providerAuthType: AuthType = p.auth_type;
       const providerId = p.provider.toLowerCase();
-      const filterKey = nonChatFilterKey(providerId, providerAuthType);
-      // Discovery persists curated subscription models, but an existing
-      // connection may have been cached before a newly supported model was
-      // released. Apply the same supplementation to this read-only view so a
-      // deployment exposes the curated model immediately, without requiring a
-      // user-triggered provider refresh. Copy first because the helper appends
-      // missing entries in place.
-      const currentCached =
-        providerAuthType === 'subscription'
-          ? filterStaleSubscriptionModels(rawCached, p.provider)
-          : rawCached;
-      const cachedWithKnownModels =
-        providerAuthType === 'subscription'
-          ? supplementWithKnownModels(currentCached, p.provider)
-          : currentCached;
-      const cached = filterNonChatModels(cachedWithKnownModels, filterKey);
-      for (const cachedModel of cached) {
-        const m =
-          providerAuthType === 'subscription'
-            ? reconcileCachedSubscriptionContextWindow(cachedModel, p.provider)
-            : cachedModel;
-        const effectiveAuthType = m.authType ?? providerAuthType;
+      for (const m of this.modelsForConnection(p)) {
         // Deduplicate by the routable tuple, not just model ID. Multiple
         // providers can expose the same native model name, and the picker must
         // keep each provider-specific route selectable.
-        const dedupeKey = `${providerId}::${effectiveAuthType}::${m.id}`;
+        const dedupeKey = `${providerId}::${m.authType}::${m.id}`;
         if (!seen.has(dedupeKey)) {
           seen.set(dedupeKey, models.length);
-          models.push({ ...m, provider: p.provider, authType: effectiveAuthType });
+          models.push(m);
         }
       }
     }
@@ -675,6 +651,46 @@ export class ModelDiscoveryService {
       }
     }
 
+    return models;
+  }
+
+  /**
+   * The routable models of one built-in connection, as the routing picker
+   * lists them. Also used for subscriptions shared by another user, whose
+   * models are offered connection by connection (fork).
+   */
+  modelsForConnection(p: TenantProvider): DiscoveredModel[] {
+    const rawCached = p.cached_models;
+    if (!Array.isArray(rawCached)) return [];
+    const providerAuthType: AuthType = p.auth_type;
+    const filterKey = nonChatFilterKey(p.provider.toLowerCase(), providerAuthType);
+    // Discovery persists curated subscription models, but an existing
+    // connection may have been cached before a newly supported model was
+    // released. Apply the same supplementation to this read-only view so a
+    // deployment exposes the curated model immediately, without requiring a
+    // user-triggered provider refresh. Copy first because the helper appends
+    // missing entries in place.
+    const currentCached =
+      providerAuthType === 'subscription'
+        ? filterStaleSubscriptionModels(rawCached, p.provider)
+        : rawCached;
+    const cachedWithKnownModels =
+      providerAuthType === 'subscription'
+        ? supplementWithKnownModels(currentCached, p.provider)
+        : currentCached;
+    const models: DiscoveredModel[] = [];
+    const seen = new Set<string>();
+    for (const cachedModel of filterNonChatModels(cachedWithKnownModels, filterKey)) {
+      const m =
+        providerAuthType === 'subscription'
+          ? reconcileCachedSubscriptionContextWindow(cachedModel, p.provider)
+          : cachedModel;
+      const effectiveAuthType = m.authType ?? providerAuthType;
+      const key = `${effectiveAuthType}::${m.id}`;
+      if (seen.has(key)) continue;
+      seen.add(key);
+      models.push({ ...m, provider: p.provider, authType: effectiveAuthType });
+    }
     return models;
   }
 

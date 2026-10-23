@@ -4,6 +4,7 @@ import {
   createMemo,
   createEffect,
   For,
+  onMount,
   Show,
   type Component,
 } from 'solid-js';
@@ -63,6 +64,8 @@ import { DEFAULT_STAGE, STAGES } from '../services/providers.js';
 // of the global theme bundle so login/overview/etc. don't download it.
 import NoConnectionsPrompt from '../components/NoConnectionsPrompt.jsx';
 import '../styles/routing.css';
+import { loadSharedConnections, sharedConnections } from '../services/shared-connections.js';
+import type { SharedConnection } from '../services/api/sharing.js';
 
 const Routing: Component = () => {
   const params = useParams<{ agentName: string }>();
@@ -413,7 +416,35 @@ const Routing: Component = () => {
     (connectedProviders() ?? []).filter((provider) => enabledProviderIds().has(provider.id));
   const isEnabled = () => enabledConnectedProviders().some((p) => p.is_active);
   const activeProviders = () => enabledConnectedProviders().filter((p) => p.is_active);
-  const hasProviders = () => activeProviders().length > 0;
+  // Fork: subscriptions shared by other users count as routable connections.
+  onMount(() => void loadSharedConnections(true));
+  const routableShared = () => (sharedConnections() ?? []).filter((c) => c.models.length > 0);
+  const hasProviders = () => activeProviders().length > 0 || routableShared().length > 0;
+  const handleSharedOverride = (
+    tierId: string,
+    modelName: string,
+    connection: SharedConnection,
+  ) => {
+    setDropdownTier(null);
+    return actions.handleOverride(
+      tierId,
+      modelName,
+      connection.provider,
+      connection.auth_type,
+      connection.label,
+      undefined,
+      connection.id,
+    );
+  };
+  const handleSharedFallback = (tierId: string, modelName: string, connection: SharedConnection) =>
+    actions.handleAddFallback(
+      tierId,
+      modelName,
+      connection.provider,
+      connection.auth_type,
+      connection.label,
+      connection.id,
+    );
   const hasOverrides = () => tiers()?.some((t) => t.override_route !== null) ?? false;
 
   const openProviderModal = () => {
@@ -686,9 +717,22 @@ const Routing: Component = () => {
                         models={models() ?? []}
                         customProviders={customProviders() ?? []}
                         connectedProviders={enabledConnectedProviders()}
-                        onOverride={async (m, p, a, label) => {
+                        onOverride={async (m, p, a, label, sharedConnectionId) => {
                           try {
-                            await overrideHeaderTier(agentName(), tier.id, m, p, a, label);
+                            if (sharedConnectionId) {
+                              await overrideHeaderTier(
+                                agentName(),
+                                tier.id,
+                                m,
+                                p,
+                                a,
+                                label,
+                                undefined,
+                                sharedConnectionId,
+                              );
+                            } else {
+                              await overrideHeaderTier(agentName(), tier.id, m, p, a, label);
+                            }
                             await refetchHeaderTiers();
                           } catch (err) {
                             toast.error(
@@ -700,7 +744,7 @@ const Routing: Component = () => {
                           const route = tier.override_route;
                           if (!route) return;
                           try {
-                            await overrideHeaderTier(
+                            const args = [
                               agentName(),
                               tier.id,
                               route.model,
@@ -708,7 +752,10 @@ const Routing: Component = () => {
                               route.authType,
                               route.keyLabel ?? undefined,
                               enabled,
-                            );
+                            ] as const;
+                            await (route.sharedConnectionId
+                              ? overrideHeaderTier(...args, route.sharedConnectionId)
+                              : overrideHeaderTier(...args));
                             await refetchHeaderTiers();
                             toast.success(
                               enabled ? 'Route skipped on quota exhaustion' : 'Quota skip disabled',
@@ -1011,6 +1058,15 @@ const Routing: Component = () => {
         onAddFallback={handleAddFallback}
         onProviderUpdate={handleProviderUpdate}
         onProviderPoll={handleProviderPoll}
+        sharedConnections={() =>
+          isSpecificityTier(fallbackPickerTier() ?? '') ? [] : routableShared()
+        }
+        onSharedOverride={(tierId, model, connection) =>
+          void handleSharedOverride(tierId, model, connection)
+        }
+        onSharedFallback={(tierId, model, connection) =>
+          void handleSharedFallback(tierId, model, connection)
+        }
       />
 
       <SetupModal

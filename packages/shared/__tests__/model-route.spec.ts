@@ -73,6 +73,15 @@ describe('routeEquals', () => {
     );
     expect(routeEquals({ ...base, keyLabel: 'Work' }, base)).toBe(false);
   });
+
+  it('tells a shared connection apart from an own one with the same label', () => {
+    const own = { ...base, keyLabel: 'Default' };
+    const shared = { ...own, sharedConnectionId: 'conn-1' };
+    expect(routeEquals(own, shared)).toBe(false);
+    expect(routeEquals(shared, { ...shared, sharedConnectionId: 'conn-2' })).toBe(false);
+    expect(routeEquals(shared, { ...shared })).toBe(true);
+    expect(routeEquals(own, { ...own, sharedConnectionId: null })).toBe(true);
+  });
 });
 
 describe('isModelRoute', () => {
@@ -177,6 +186,14 @@ describe('isModelRoute', () => {
         skipWhenQuotaExhausted: 1,
       }),
     ).toBe(false);
+  });
+
+  it('accepts a string or null sharedConnectionId and rejects other types', () => {
+    const route = { provider: 'anthropic', authType: 'subscription', model: 'm' };
+    expect(isModelRoute({ ...route, sharedConnectionId: 'conn-1' })).toBe(true);
+    expect(isModelRoute({ ...route, sharedConnectionId: null })).toBe(true);
+    expect(isModelRoute({ ...route, sharedConnectionId: undefined })).toBe(true);
+    expect(isModelRoute({ ...route, sharedConnectionId: 42 })).toBe(false);
   });
 });
 

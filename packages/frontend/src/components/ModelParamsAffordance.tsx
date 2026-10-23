@@ -1,11 +1,12 @@
-import { createResource, createSignal, lazy, Show, Suspense, type Component } from 'solid-js';
+import { createResource, createSignal, Show, Suspense, type Component } from 'solid-js';
+import { lazyReload } from '../services/lazy-reload.js';
 import type { ProviderParamSpec } from 'manifest-shared';
 import type { AuthType, RequestParamDefaults } from '../services/api.js';
 import { getModelParamSpecs } from '../services/api/model-params.js';
 
 // Only mounted while the parameters dialog is open. Lazy-load it so the
 // Routing route doesn't ship the dialog up front.
-const ModelParamsDialog = lazy(() => import('./ModelParamsDialog.jsx'));
+const ModelParamsDialog = lazyReload(() => import('./ModelParamsDialog.jsx'));
 
 interface Props {
   agentName: string;

@@ -11,6 +11,7 @@ import { TierAssignment } from '../entities/tier-assignment.entity';
 import { SpecificityAssignment } from '../entities/specificity-assignment.entity';
 import { hashKey, keyPrefix } from '../common/utils/hash.util';
 import { getSeedConnections } from './seed-messages';
+import { runAsProvisioning } from '../auth/signup-gate';
 
 const OLD_USER_EMAIL = 'olduser@manifest.build';
 const OLD_USER_PASSWORD = 'manifest';
@@ -97,9 +98,12 @@ async function seedCleanCohort(deps: CohortSeedDeps): Promise<void> {
 }
 
 async function seedLegacyCohort(deps: CohortSeedDeps): Promise<void> {
-  await auth.api.signUpEmail({
-    body: { email: OLD_USER_EMAIL, password: OLD_USER_PASSWORD, name: 'Old User' },
-  });
+  // Fork: the sign-up gate closes once the admin exists; seeding provisions.
+  await runAsProvisioning(() =>
+    auth.api.signUpEmail({
+      body: { email: OLD_USER_EMAIL, password: OLD_USER_PASSWORD, name: 'Old User' },
+    }),
+  );
   await deps.dataSource.query(`UPDATE "user" SET "emailVerified" = true WHERE email = $1`, [
     OLD_USER_EMAIL,
   ]);

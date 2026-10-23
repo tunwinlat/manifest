@@ -26,6 +26,7 @@ import ModelParamsAffordance from './ModelParamsAffordance.jsx';
 import RouteKeyChip from './RouteKeyChip.js';
 import QuotaSkipToggle from './QuotaSkipToggle.js';
 import { modelParamsScopeForTier } from 'manifest-shared';
+import SharedRouteChip from './SharedRouteChip.jsx';
 
 interface FallbackListProps {
   agentName: string;
@@ -458,7 +459,9 @@ const FallbackList: Component<FallbackListProps> = (props) => {
               const isCustom = () => provId()?.startsWith('custom:');
               const auth = () => authTypeFor(provId(), i());
               const title = () => providerTitle(provId(), auth());
-              const keys = () => keysForFallback(provId(), auth());
+              // Fork: a shared fallback runs on another user's connection.
+              const keys = () =>
+                route()?.sharedConnectionId ? [] : keysForFallback(provId(), auth());
               return (
                 <>
                   <div
@@ -551,6 +554,7 @@ const FallbackList: Component<FallbackListProps> = (props) => {
                       <Show when={skippedInStream(model(), i())}>
                         <span class="routing-card__skipped-badge">Skipped in Stream</span>
                       </Show>
+                      <SharedRouteChip route={route()} />
                       <Show when={keys().length > 1}>
                         <RouteKeyChip
                           keys={keys()}

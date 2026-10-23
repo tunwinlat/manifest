@@ -52,6 +52,11 @@ interface ForwardProviderOptions {
   clientAnthropicBeta?: string | string[];
   paramMergeContext?: ParamMergeContext;
   tenantProviderId?: string | null;
+  /**
+   * Tenant owning the credential when it differs from `tenantId` — a
+   * subscription another user shared (fork). OAuth refresh targets it.
+   */
+  credentialTenantId?: string;
   startProviderAttempt?: StartProviderAttempt;
 }
 
@@ -301,6 +306,7 @@ export class ProxyFallbackService {
         provider,
         authType,
         providerKeyLabel,
+        sharedConnectionId: route?.sharedConnectionId,
       });
       if (!credentials.ok) {
         this.logger.debug(
@@ -361,6 +367,7 @@ export class ProxyFallbackService {
           clientAnthropicBeta,
           paramMergeContext,
           tenantProviderId,
+          credentialTenantId: credentials.credentialTenantId,
           startProviderAttempt,
         }),
         { stream, provider, model },
@@ -919,7 +926,7 @@ export class ProxyFallbackService {
       opts.provider,
       opts.rawApiKey,
       opts.agentId,
-      opts.tenantId,
+      opts.credentialTenantId ?? opts.tenantId,
       opts.providerKeyLabel,
       {
         openaiOauth: this.openaiOauth,

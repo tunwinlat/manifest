@@ -1,10 +1,11 @@
-import { Show, Suspense, lazy, type Component } from 'solid-js';
+import { Show, Suspense, type Component } from 'solid-js';
+import { lazyReload } from '../services/lazy-reload.js';
 import InfoTooltip from './InfoTooltip.jsx';
 import { formatNumber, formatCost } from '../services/formatters.js';
 
 // uPlot is heavy; lazy-load the chart so it stays out of the initial bundle and
 // is only fetched when this card actually renders a chart body.
-const MultiAgentTokenChart = lazy(() => import('./MultiAgentTokenChart.jsx'));
+const MultiAgentTokenChart = lazyReload(() => import('./MultiAgentTokenChart.jsx'));
 
 type ProviderView = 'messages' | 'tokens' | 'cost';
 

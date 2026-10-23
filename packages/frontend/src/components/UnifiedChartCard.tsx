@@ -1,10 +1,11 @@
-import { Show, Suspense, lazy, type Component, type JSX } from 'solid-js';
+import { Show, Suspense, type Component, type JSX } from 'solid-js';
+import { lazyReload } from '../services/lazy-reload.js';
 import InfoTooltip from './InfoTooltip.jsx';
 import { formatNumber, formatCost } from '../services/formatters.js';
 import { RECOVERED_REQUESTS_TOOLTIP, type AutofixTimeseries } from '../services/api/analytics.js';
 
-const MultiAgentTokenChart = lazy(() => import('./MultiAgentTokenChart.jsx'));
-const ReliabilityChart = lazy(() => import('./ReliabilityChart.jsx'));
+const MultiAgentTokenChart = lazyReload(() => import('./MultiAgentTokenChart.jsx'));
+const ReliabilityChart = lazyReload(() => import('./ReliabilityChart.jsx'));
 
 export type ChartTab = 'requests' | 'selfheal' | 'cost' | 'tokens';
 

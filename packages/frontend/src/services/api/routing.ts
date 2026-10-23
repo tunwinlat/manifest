@@ -287,6 +287,8 @@ export function overrideTier(
   authType?: AuthType,
   providerKeyLabel?: string,
   skipWhenQuotaExhausted?: boolean,
+  /** Fork: route through a subscription another user shared. */
+  sharedConnectionId?: string | null,
 ) {
   // The backend requires the structured (provider, authType, model) tuple now
   // that legacy column persistence is gone. authType is optional only for
@@ -304,6 +306,7 @@ export function overrideTier(
     if (skipWhenQuotaExhausted !== undefined) {
       route.skipWhenQuotaExhausted = skipWhenQuotaExhausted;
     }
+    if (sharedConnectionId) route.sharedConnectionId = sharedConnectionId;
     body.route = route;
   }
   if (providerKeyLabel) body.providerKeyLabel = providerKeyLabel;

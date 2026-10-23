@@ -80,6 +80,18 @@ describe('TtlFifoCache', () => {
     expect(await cache.resolve('k', loader)).toBe('v2');
   });
 
+  it('clear() forces every key to reload', async () => {
+    const loader = jest.fn<Promise<string>, [string]>().mockImplementation(async (k) => k);
+    const cache = new TtlFifoCache<string, string>({ maxEntries: 10, ttlMs: 1_000_000 });
+
+    await cache.resolve('a', loader);
+    await cache.resolve('b', loader);
+    cache.clear();
+    await cache.resolve('a', loader);
+    await cache.resolve('b', loader);
+    expect(loader).toHaveBeenCalledTimes(4);
+  });
+
   it('does not cache a value rejected by shouldCache (loader re-runs until cacheable)', async () => {
     const loader = jest
       .fn<Promise<number | null>, [string]>()

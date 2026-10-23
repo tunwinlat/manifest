@@ -50,6 +50,12 @@ vi.mock("../../src/services/setup-status.js", () => ({
   checkMcpEnabled: () => Promise.resolve(mockMcpEnabled),
 }));
 
+// Fork: the Administration section is for administrators only.
+let mockIsAdmin = false;
+vi.mock("../../src/services/api/admin.js", () => ({
+  checkIsAdmin: () => Promise.resolve(mockIsAdmin),
+}));
+
 // Stub the create-harness modal so the Sidebar test stays isolated from the
 // modal's own dependency tree; we only assert that the + button opens it.
 const mockAddModal = vi.fn();
@@ -79,6 +85,7 @@ beforeEach(() => {
   mockPathname = "/overview";
   mockPrivacyMode = false;
   mockIsSelfHosted = true;
+  mockIsAdmin = false;
   mockGetBillingStatus.mockResolvedValue({
     enabled: false,
     plan: "free",
@@ -440,5 +447,34 @@ describe("Sidebar — API Bot announcement card", () => {
     await screen.findByText("Playground");
     await new Promise((r) => setTimeout(r, 0));
     expect(container.querySelector(".sidebar-api-bot")).toBeNull();
+  });
+});
+
+describe("Sidebar — Administration (fork)", () => {
+  it("shows Administration → Users to administrators", async () => {
+    mockIsAdmin = true;
+    const { container } = render(() => <Sidebar />);
+    await waitFor(() => expect(screen.getByText("ADMINISTRATION")).toBeDefined());
+    const link = container.querySelector('a[href="/admin/users"]');
+    expect(link?.textContent).toBe("Users");
+  });
+
+  it("marks Users active on the admin page", async () => {
+    mockIsAdmin = true;
+    mockPathname = "/admin/users";
+    const { container } = render(() => <Sidebar />);
+    await waitFor(() =>
+      expect(container.querySelector('a[href="/admin/users"]')?.getAttribute("aria-current")).toBe(
+        "page",
+      ),
+    );
+  });
+
+  it("hides the section from regular users", async () => {
+    const { container } = render(() => <Sidebar />);
+    await waitFor(() => expect(screen.getByText("Usage-based")).toBeDefined());
+    await Promise.resolve();
+    expect(container.textContent).not.toContain("ADMINISTRATION");
+    expect(container.querySelector('a[href="/admin/users"]')).toBeNull();
   });
 });

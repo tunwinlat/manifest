@@ -57,6 +57,7 @@ describe('ResolveService', () => {
       | 'getDefaultKeyLabel'
       | 'hasRouteCredentials'
       | 'getProviderKeyId'
+      | 'selectSharedProviderKey'
     >
   >;
   let specificityService: jest.Mocked<Pick<SpecificityService, 'getActiveAssignments'>>;
@@ -93,6 +94,7 @@ describe('ResolveService', () => {
       // Default: no quota-backed connection resolves, so quota filtering is a
       // no-op unless a test wires specific ids.
       getProviderKeyId: jest.fn().mockResolvedValue(null),
+      selectSharedProviderKey: jest.fn().mockResolvedValue(null),
     };
     specificityService = { getActiveAssignments: jest.fn().mockResolvedValue([]) };
     pricingCache = { getByModel: jest.fn().mockReturnValue(undefined) };
@@ -760,6 +762,34 @@ describe('ResolveService', () => {
       const result = await svc.resolve('agent-1', 'user-1', messages);
       expect(result.route).toEqual(route('openai', 'api_key', 'gpt-4o-mini'));
       expect(result.fallback_routes).toBeNull();
+    });
+
+    it('checks a shared route against the shared connection quota (fork)', async () => {
+      const shared = {
+        ...flagged('anthropic', 'subscription', 'claude-opus-4-8'),
+        keyLabel: 'Work',
+        sharedConnectionId: 'conn-1',
+      };
+      providerKeyService.selectSharedProviderKey.mockResolvedValue({
+        key: { id: 'tp-anthropic' },
+      } as never);
+      tierService.getTiers.mockResolvedValue([
+        {
+          tier: 'default',
+          override_route: null,
+          auto_assigned_route: null,
+          fallback_routes: [shared, route('openai', 'api_key', 'gpt-4o-mini')],
+        } as unknown as TierAssignment,
+      ]);
+
+      const result = await svc.resolve('agent-1', 'user-1', messages);
+      expect(providerKeyService.selectSharedProviderKey).toHaveBeenCalledWith('user-1', 'conn-1');
+      expect(result.route).toEqual(route('openai', 'api_key', 'gpt-4o-mini'));
+
+      // An unusable shared connection is never "exhausted": credential checks own that.
+      providerKeyService.selectSharedProviderKey.mockResolvedValue(null);
+      const kept = await svc.resolve('agent-1', 'user-1', messages);
+      expect(kept.route).toEqual(shared);
     });
 
     it('keeps an unflagged route even when its connection is quota-exhausted', async () => {
@@ -1614,6 +1644,32 @@ describe('ResolveService', () => {
       );
 
       expect(result).toEqual({ ...route('openai', 'api_key', 'gpt-4o'), keyLabel: 'Default' });
+    });
+
+    it('never inherits the label of a shared default override (fork)', async () => {
+      tierService.getTiers.mockResolvedValue([
+        defaultTier({
+          ...route('openai', 'api_key', 'gpt-4o-mini'),
+          keyLabel: 'Owner label',
+          sharedConnectionId: 'conn-1',
+        }),
+      ]);
+      providerKeyService.getDefaultKeyLabel.mockResolvedValue('Default');
+
+      const result = await svc.pinRouteKeyLabel(
+        'agent-1',
+        'tenant-1',
+        route('openai', 'api_key', 'gpt-4o'),
+      );
+
+      expect(result).toEqual({ ...route('openai', 'api_key', 'gpt-4o'), keyLabel: 'Default' });
+    });
+
+    it('leaves a shared route label alone (fork)', async () => {
+      const shared = { ...route('anthropic', 'subscription', 'claude'), sharedConnectionId: 'c1' };
+      tierService.getTiers.mockResolvedValue([]);
+      await expect(svc.pinRouteKeyLabel('agent-1', 'tenant-1', shared)).resolves.toBe(shared);
+      expect(providerKeyService.getDefaultKeyLabel).not.toHaveBeenCalled();
     });
 
     it('falls back to the default connection label when the default tier pins nothing', async () => {

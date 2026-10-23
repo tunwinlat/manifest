@@ -42,6 +42,14 @@ export class TenantProvider {
   @Column('boolean', { default: true })
   is_active!: boolean;
 
+  /**
+   * Fork: the owner offers this subscription to the install's other users,
+   * who can then route their harnesses through it. Optional in the type so
+   * fixtures built before the column existed keep compiling.
+   */
+  @Column('boolean', { default: false })
+  is_shared?: boolean;
+
   @Column(timestampType(), { default: timestampDefault() })
   connected_at!: string;
 

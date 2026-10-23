@@ -5,6 +5,7 @@ import { OLLAMA_HOST } from '../common/constants/ollama';
 import { getContainerHostAlias, isSelfHosted } from '../common/utils/detect-self-hosted';
 import { isEmailConfigured } from '../notifications/services/email-providers/send-email';
 import { mcpAvailability } from '../auth/mcp-availability';
+import { isSignupAllowed } from '../auth/signup-gate';
 
 /**
  * Postgres advisory lock key reserved for the first-run setup wizard.
@@ -71,6 +72,15 @@ export class SetupService {
    */
   isMcpEnabled(): boolean {
     return mcpAvailability().enabled;
+  }
+
+  /**
+   * Fork: whether a visitor may create their own account right now — the
+   * login page hides its sign-up link and the sign-up page explains who to
+   * ask when this is false. Same rule Better Auth enforces on every sign-up.
+   */
+  async isSignupEnabled(): Promise<boolean> {
+    return isSignupAllowed((sql) => this.dataSource.query(sql));
   }
 
   /**
@@ -143,6 +153,7 @@ export class SetupService {
               await queryRunner.query(`UPDATE "user" SET "emailVerified" = true WHERE email = $1`, [
                 dto.email,
               ]);
+              await this.grantAdmin(queryRunner, dto.email);
               this.logger.log(`First-run setup recovery — completed verification for ${dto.email}`);
               return;
             }
@@ -165,6 +176,7 @@ export class SetupService {
         await queryRunner.query(`UPDATE "user" SET "emailVerified" = true WHERE email = $1`, [
           dto.email,
         ]);
+        await this.grantAdmin(queryRunner, dto.email);
 
         this.logger.log(`First-run setup complete — admin user created: ${dto.email}`);
       } finally {
@@ -173,5 +185,18 @@ export class SetupService {
     } finally {
       await queryRunner.release();
     }
+  }
+
+  /** Fork: the first user of an install is its administrator. */
+  private async grantAdmin(
+    queryRunner: { query: (sql: string, params?: unknown[]) => Promise<unknown> },
+    email: string,
+  ): Promise<void> {
+    await queryRunner.query(
+      `INSERT INTO user_roles (user_id, role, created_at, updated_at)
+       SELECT id, 'admin', NOW(), NOW() FROM "user" WHERE email = $1
+       ON CONFLICT (user_id) DO UPDATE SET role = 'admin', updated_at = NOW()`,
+      [email],
+    );
   }
 }

@@ -1,4 +1,10 @@
-import { BadRequestException, Injectable, NotFoundException } from '@nestjs/common';
+import {
+  BadRequestException,
+  Injectable,
+  NotFoundException,
+  Optional,
+  Inject,
+} from '@nestjs/common';
 import { InjectRepository } from '@nestjs/typeorm';
 import { Repository } from 'typeorm';
 import { randomUUID } from 'crypto';
@@ -12,9 +18,11 @@ import {
 import { HeaderTier } from '../../entities/header-tier.entity';
 import { ModelDiscoveryService } from '../../model-discovery/model-discovery.service';
 import { RoutingCacheService } from '../routing-core/routing-cache.service';
+import { SharedConnectionService } from '../routing-core/shared-connection.service';
 import { explicitRoute, readFallbackRoutes } from '../routing-core/route-helpers';
 import {
   describeUnresolvedFallback,
+  describeUnresolvedModel,
   resolveFallbackRoutes,
   resolveModelRoute,
 } from '../routing-core/resolve-model-route';
@@ -53,6 +61,10 @@ export class HeaderTierService {
     private readonly repo: Repository<HeaderTier>,
     private readonly routingCache: RoutingCacheService,
     private readonly discoveryService: ModelDiscoveryService,
+    // Explicit token: a `T | null` parameter type carries no DI metadata.
+    @Optional()
+    @Inject(SharedConnectionService)
+    private readonly sharedConnections: SharedConnectionService | null = null,
   ) {}
 
   async list(agentId: string): Promise<HeaderTier[]> {
@@ -206,19 +218,36 @@ export class HeaderTierService {
     authType?: AuthType,
     providerKeyLabel?: string | null,
     skipWhenQuotaExhausted?: boolean,
+    sharedConnectionId?: string | null,
   ): Promise<HeaderTier> {
     const row = await this.findOrThrow(agentId, id);
-    // Store the canonical route whichever published name the caller used. An
-    // explicit (provider, authType) the discovery list does not know is kept
-    // as given, as before.
-    const resolution = resolveModelRoute(
-      model,
-      await this.discoveryService.getModelsForAgent(tenantId, row.agent_id),
-      { provider, authType, keyLabel: providerKeyLabel },
-    );
-    const route = resolution.ok
-      ? resolution.route
-      : explicitRoute(model, provider, authType, providerKeyLabel);
+    let route: ModelRoute | null;
+    if (sharedConnectionId) {
+      // Fork: another user's shared subscription must offer the model.
+      if (!this.sharedConnections) {
+        throw new BadRequestException('Shared subscriptions are not available.');
+      }
+      const shared = await this.sharedConnections.requireRouteScope(tenantId, sharedConnectionId);
+      const resolution = resolveModelRoute(model, shared.models, shared.scope);
+      if (!resolution.ok) {
+        throw new BadRequestException(
+          describeUnresolvedModel(model, resolution.reason, shared.models, shared.scope),
+        );
+      }
+      route = resolution.route;
+    } else {
+      // Store the canonical route whichever published name the caller used. An
+      // explicit (provider, authType) the discovery list does not know is kept
+      // as given, as before.
+      const resolution = resolveModelRoute(
+        model,
+        await this.discoveryService.getModelsForAgent(tenantId, row.agent_id),
+        { provider, authType, keyLabel: providerKeyLabel },
+      );
+      route = resolution.ok
+        ? resolution.route
+        : explicitRoute(model, provider, authType, providerKeyLabel);
+    }
     // skipWhenQuotaExhausted: true sets the flag, explicit false clears it,
     // and omitted (undefined) preserves the stored route's value.
     const preserved =
@@ -304,7 +333,12 @@ export class HeaderTierService {
   ): Promise<ModelRoute[] | null> {
     if (models.length === 0) return null;
     const available = await this.discoveryService.getModelsForAgent(tenantId, agentId);
-    const resolution = resolveFallbackRoutes(models, available, routes, storedRoutes);
+    const sharedPools = await this.sharedConnections?.poolsForRoutes(
+      tenantId,
+      routes,
+      storedRoutes,
+    );
+    const resolution = resolveFallbackRoutes(models, available, routes, storedRoutes, sharedPools);
     if (!resolution.ok) {
       throw new BadRequestException(describeUnresolvedFallback(resolution.model));
     }

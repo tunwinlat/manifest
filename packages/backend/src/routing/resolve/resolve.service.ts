@@ -369,7 +369,15 @@ export class ResolveService {
       (await this.providerKeyService.getAuthType(tenantId, provider ?? '', undefined, agentId));
     const baseRoute: ModelRoute | null =
       provider && authType
-        ? { provider, authType, model: primaryOverride.model, keyLabel: primaryOverride.keyLabel }
+        ? {
+            provider,
+            authType,
+            model: primaryOverride.model,
+            keyLabel: primaryOverride.keyLabel,
+            ...(primaryOverride.sharedConnectionId
+              ? { sharedConnectionId: primaryOverride.sharedConnectionId }
+              : {}),
+          }
         : null;
     const route = baseRoute ? await this.enrichRouteKeyLabel(agentId, tenantId, baseRoute) : null;
 
@@ -573,7 +581,12 @@ export class ResolveService {
       );
     }
 
-    return this.promoteFirstWithCredentials(promotable, agentId, tenantId, unavailableOverrideModel);
+    return this.promoteFirstWithCredentials(
+      promotable,
+      agentId,
+      tenantId,
+      unavailableOverrideModel,
+    );
   }
 
   /**
@@ -613,6 +626,13 @@ export class ResolveService {
     tenantId: string,
   ): Promise<boolean> {
     if (route.skipWhenQuotaExhausted !== true) return false;
+    if (route.sharedConnectionId) {
+      const shared = await this.providerKeyService.selectSharedProviderKey(
+        tenantId,
+        route.sharedConnectionId,
+      );
+      return shared !== null && this.subscriptionQuota.isQuotaExhausted(shared.key.id);
+    }
     const keyId = await this.providerKeyService.getProviderKeyId(
       tenantId,
       route.provider,
@@ -679,6 +699,8 @@ export class ResolveService {
     const assignment = tiers.find((t) => t.tier === DEFAULT_TIER_SLOT);
     const override = assignment ? readOverrideRoute(assignment) : null;
     if (!override?.keyLabel) return undefined;
+    // Fork: a shared override's label names another user's connection.
+    if (override.sharedConnectionId) return undefined;
     if (override.provider.toLowerCase() !== route.provider.toLowerCase()) return undefined;
     if (override.authType !== route.authType) return undefined;
     return override.keyLabel;
@@ -699,7 +721,8 @@ export class ResolveService {
     tenantId: string,
     route: ModelRoute,
   ): Promise<ModelRoute> {
-    if (route.keyLabel) return route;
+    // A shared route already names its connection by id.
+    if (route.keyLabel || route.sharedConnectionId) return route;
     const label = await this.providerKeyService.getDefaultKeyLabel(
       tenantId,
       route.provider,

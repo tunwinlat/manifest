@@ -30,6 +30,8 @@ import ModelCapabilityBadges, {
   ModelModalityBadges,
 } from './ModelCapabilityBadges.js';
 import VirtualList from './VirtualList.js';
+import SharedModelList from './SharedModelList.js';
+import type { SharedConnection } from '../services/api/sharing.js';
 
 const PICKER_NARROW_QUERY = '(max-width: 640px)';
 const PICKER_GROUP_HEADER_HEIGHT = 32;
@@ -54,6 +56,9 @@ interface Props {
   onConnectProviders?: () => void;
   onProviderRefreshed?: () => void | Promise<void>;
   requiredCapability?: ModelCapability;
+  /** Fork: subscriptions other users share; shown in a "Shared with me" tab. */
+  sharedConnections?: SharedConnection[];
+  onSelectShared?: (tierId: string, modelName: string, connection: SharedConnection) => void;
 }
 
 /** Resolve a display label for a model name, handling vendor-prefixed IDs. */
@@ -120,7 +125,10 @@ const ModelPickerModal: Component<Props> = (props) => {
   // Show the tab strip whenever the user has models in more than one auth
   // category — otherwise the picker is single-category and the tabs add
   // noise. Local counts as its own category alongside subscription/api_key.
-  const showTabs = () => [hasSubscription(), hasApiKey(), hasLocal()].filter(Boolean).length > 1;
+  const hasShared = () =>
+    !!props.onSelectShared && (props.sharedConnections ?? []).some((c) => c.models.length > 0);
+  const showTabs = () =>
+    [hasSubscription(), hasApiKey(), hasLocal(), hasShared()].filter(Boolean).length > 1;
 
   // Default to the first connected category (subscription > api_key > local)
   // so the picker opens on something the user actually has. When nothing is
@@ -133,6 +141,15 @@ const ModelPickerModal: Component<Props> = (props) => {
     return 'api_key';
   };
   const [activeTab, setActiveTab] = createSignal<AuthType>(resolveInitialTab());
+  // Fork: the "Shared with me" tab sits beside the auth tabs. It opens first
+  // only when the user has no connection of their own.
+  const [sharedTab, setSharedTab] = createSignal(
+    hasShared() && !hasSubscription() && !hasApiKey() && !hasLocal(),
+  );
+  const selectTab = (tab: AuthType) => {
+    setSharedTab(false);
+    setActiveTab(tab);
+  };
   const [search, setSearch] = createSignal('');
   const [showFreeOnly, setShowFreeOnly] = createSignal(false);
   /** Required capabilities: only show models that have ALL of these. */
@@ -491,11 +508,13 @@ const ModelPickerModal: Component<Props> = (props) => {
               <Show when={hasSubscription()}>
                 <button
                   role="tab"
-                  aria-selected={activeTab() === 'subscription'}
+                  aria-selected={!sharedTab() && activeTab() === 'subscription'}
                   class="panel__tab"
-                  classList={{ 'panel__tab--active': activeTab() === 'subscription' }}
+                  classList={{
+                    'panel__tab--active': !sharedTab() && activeTab() === 'subscription',
+                  }}
                   onClick={() => {
-                    setActiveTab('subscription');
+                    selectTab('subscription');
                     setShowFreeOnly(false);
                   }}
                 >
@@ -521,10 +540,10 @@ const ModelPickerModal: Component<Props> = (props) => {
               <Show when={hasApiKey()}>
                 <button
                   role="tab"
-                  aria-selected={activeTab() === 'api_key'}
+                  aria-selected={!sharedTab() && activeTab() === 'api_key'}
                   class="panel__tab"
-                  classList={{ 'panel__tab--active': activeTab() === 'api_key' }}
-                  onClick={() => setActiveTab('api_key')}
+                  classList={{ 'panel__tab--active': !sharedTab() && activeTab() === 'api_key' }}
+                  onClick={() => selectTab('api_key')}
                 >
                   <svg
                     class="provider-modal__tab-icon"
@@ -547,11 +566,11 @@ const ModelPickerModal: Component<Props> = (props) => {
               <Show when={hasLocal()}>
                 <button
                   role="tab"
-                  aria-selected={activeTab() === 'local'}
+                  aria-selected={!sharedTab() && activeTab() === 'local'}
                   class="panel__tab"
-                  classList={{ 'panel__tab--active': activeTab() === 'local' }}
+                  classList={{ 'panel__tab--active': !sharedTab() && activeTab() === 'local' }}
                   onClick={() => {
-                    setActiveTab('local');
+                    selectTab('local');
                     setShowFreeOnly(false);
                   }}
                 >
@@ -569,11 +588,22 @@ const ModelPickerModal: Component<Props> = (props) => {
                   Local
                 </button>
               </Show>
+              <Show when={hasShared()}>
+                <button
+                  role="tab"
+                  aria-selected={sharedTab()}
+                  class="panel__tab"
+                  classList={{ 'panel__tab--active': sharedTab() }}
+                  onClick={() => setSharedTab(true)}
+                >
+                  Shared with me
+                </button>
+              </Show>
             </div>
           </div>
         </Show>
 
-        <Show when={totalAvailableModels() > 5}>
+        <Show when={!sharedTab() && totalAvailableModels() > 5}>
           <div class="routing-modal__search-wrap">
             <svg
               class="routing-modal__search-icon"
@@ -602,7 +632,10 @@ const ModelPickerModal: Component<Props> = (props) => {
           </div>
         </Show>
 
-        <div class="routing-modal__filter-bar">
+        <div
+          class="routing-modal__filter-bar"
+          style={{ display: sharedTab() ? 'none' : undefined }}
+        >
           <div class="routing-modal__filter-left">
             <Show when={isPaid()}>
               <button
@@ -634,7 +667,7 @@ const ModelPickerModal: Component<Props> = (props) => {
           </div>
         </div>
 
-        <Show when={groupedModels().length > 0}>
+        <Show when={!sharedTab() && groupedModels().length > 0}>
           <div class="routing-modal__table-head" aria-hidden="true">
             <span>Model</span>
             <span>Capabilities</span>
@@ -643,10 +676,18 @@ const ModelPickerModal: Component<Props> = (props) => {
             <span>Price</span>
           </div>
         </Show>
+        <Show when={sharedTab()}>
+          <SharedModelList
+            connections={props.sharedConnections ?? []}
+            onSelect={(model, connection) =>
+              props.onSelectShared?.(props.tierId, model, connection)
+            }
+          />
+        </Show>
         <Show
-          when={pickerItems().length > 0}
+          when={!sharedTab() && pickerItems().length > 0}
           fallback={
-            <div class="routing-modal__list">
+            <div class="routing-modal__list" style={{ display: sharedTab() ? 'none' : undefined }}>
               <div class="routing-modal__empty">
                 {search().trim()
                   ? 'No models match your search.'

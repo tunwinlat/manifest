@@ -46,6 +46,7 @@ import {
 } from '../../services/api/analytics.js';
 import '../../styles/routing.css';
 import '../../styles/analytics-overview.css';
+import ShareSwitch from '../../components/ShareSwitch.jsx';
 
 type ProviderPageKind = 'subscriptions' | 'byok' | 'local';
 type ViewMode = 'list' | 'grid';
@@ -631,6 +632,12 @@ const ProviderConnectionsPage: Component<ProviderConnectionsPageProps> = (props)
                     <th>Provider</th>
                     <th>Connection</th>
                     <th>Status</th>
+                    <Show when={props.kind === 'subscriptions'}>
+                      <th>
+                        Share
+                        <InfoTooltip text="Let the other users of this Manifest route their harnesses through this subscription. Your credential stays in your account." />
+                      </th>
+                    </Show>
                     <th>Usage (30d)</th>
                     <Show when={copy().rowMetricHeading}>
                       <th>{copy().rowMetricHeading}</th>
@@ -762,6 +769,15 @@ const ProviderConnectionsPage: Component<ProviderConnectionsPageProps> = (props)
                         <td>
                           <StatusBadge active={row.connection.is_active} />
                         </td>
+                        <Show when={props.kind === 'subscriptions'}>
+                          <td>
+                            <ShareSwitch
+                              connectionId={row.connection.id}
+                              label={row.connection.label}
+                              shared={row.connection.is_shared === true}
+                            />
+                          </td>
+                        </Show>
                         <td>
                           <Show when={!usageLoading()} fallback={<UsageShimmer width={96} />}>
                             <div style="display: flex; align-items: center; gap: 8px;">

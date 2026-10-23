@@ -328,6 +328,7 @@ export class ProxyService {
       provider: route.provider,
       auth_type: route.authType,
       provider_key_label: route.keyLabel ?? undefined,
+      shared_connection_id: route.sharedConnectionId,
     });
 
     const primaryModel = normalizeProviderModel(route.provider, route.model);
@@ -480,6 +481,7 @@ export class ProxyService {
       clientAnthropicBeta: headers?.['anthropic-beta'],
       paramMergeContext,
       tenantProviderId: credentials.tenantProviderId,
+      credentialTenantId: credentials.credentialTenantId,
       startProviderAttempt,
     });
     const autofixOriginalAttempt = forward.attempt;
@@ -830,6 +832,7 @@ export class ProxyService {
       provider: route.provider,
       auth_type: route.authType,
       provider_key_label: route.keyLabel ?? undefined,
+      shared_connection_id: route.sharedConnectionId,
     });
     if (!credentials.ok) {
       return this.retryHealedOnOriginalTransport(
@@ -872,6 +875,7 @@ export class ProxyService {
       clientAnthropicBeta: ctx.headers?.['anthropic-beta'],
       paramMergeContext: explicitModelOverride ? undefined : { agentId: ctx.agentId, scopeKey },
       tenantProviderId: credentials.tenantProviderId,
+      credentialTenantId: credentials.credentialTenantId,
       startProviderAttempt: ctx.startProviderAttempt,
     });
   }
@@ -1173,7 +1177,12 @@ export class ProxyService {
   private resolveCredentials(
     agentId: string,
     tenantId: string,
-    resolved: { provider: string; auth_type?: AuthType; provider_key_label?: string },
+    resolved: {
+      provider: string;
+      auth_type?: AuthType;
+      provider_key_label?: string;
+      shared_connection_id?: string | null;
+    },
   ): Promise<ResolvedRouteCredentials> {
     return resolveRouteCredentials(this.routeCredentialDeps(), {
       agentId,
@@ -1181,6 +1190,7 @@ export class ProxyService {
       provider: resolved.provider,
       authType: resolved.auth_type,
       providerKeyLabel: resolved.provider_key_label,
+      sharedConnectionId: resolved.shared_connection_id,
     });
   }
 

@@ -80,6 +80,7 @@ export class TierController {
       authType,
       providerKeyLabel,
       body.route?.skipWhenQuotaExhausted,
+      body.route?.sharedConnectionId,
     );
   }
 

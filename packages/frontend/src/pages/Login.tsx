@@ -5,7 +5,7 @@ import SocialButtons from '../components/SocialButtons.jsx';
 import { authClient } from '../services/auth-client.js';
 import { appendSearch, getAuthDestination } from '../services/auth-redirects.js';
 import { getLastAuthMethod, setLastAuthMethod } from '../services/last-auth-method.js';
-import { checkSocialProviders } from '../services/setup-status.js';
+import { checkSignupEnabled, checkSocialProviders } from '../services/setup-status.js';
 
 const RESEND_COOLDOWN_SECONDS = 60;
 
@@ -25,6 +25,8 @@ const Login: Component = () => {
   const [resendCooldown, setResendCooldown] = createSignal(0);
   const [socialProviders, setSocialProviders] = createSignal<string[]>([]);
   const [lastAuthMethod] = createSignal(getLastAuthMethod());
+  // Fork: hide the sign-up link when the administrator closed sign-up.
+  const [signupEnabled, setSignupEnabled] = createSignal(true);
   const [searchParams] = useSearchParams();
   const location = useLocation();
   const emailId = createUniqueId();
@@ -39,6 +41,7 @@ const Login: Component = () => {
       setError('Login failed. Please try again or use a different method.');
     }
     setSocialProviders(await checkSocialProviders());
+    setSignupEnabled(await checkSignupEnabled());
   });
 
   let cooldownInterval: ReturnType<typeof setInterval> | undefined;
@@ -216,12 +219,14 @@ const Login: Component = () => {
           {loading() ? <span class="spinner" /> : 'Sign in'}
         </button>
       </form>
-      <div class="auth-footer">
-        <span>Don't have an account? </span>
-        <A href={appendSearch('/register', location.search)} class="auth-footer__link">
-          Sign up
-        </A>
-      </div>
+      <Show when={signupEnabled()}>
+        <div class="auth-footer">
+          <span>Don't have an account? </span>
+          <A href={appendSearch('/register', location.search)} class="auth-footer__link">
+            Sign up
+          </A>
+        </div>
+      </Show>
     </>
   );
 };

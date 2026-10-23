@@ -7,6 +7,12 @@ export interface ModelRoute {
   keyLabel?: string | null;
   /** Skip this route while the backing subscription connection's quota is exhausted. */
   skipWhenQuotaExhausted?: boolean;
+  /**
+   * Fork: the `tenant_providers` id of a subscription another user shared.
+   * When set, the route runs on that connection instead of one of the
+   * harness owner's own; `keyLabel` then only names it for display.
+   */
+  sharedConnectionId?: string | null;
 }
 
 export function routeEquals(
@@ -18,7 +24,8 @@ export function routeEquals(
     a.provider.toLowerCase() === b.provider.toLowerCase() &&
     a.authType === b.authType &&
     a.model === b.model &&
-    normalizeKeyLabel(a.keyLabel) === normalizeKeyLabel(b.keyLabel)
+    normalizeKeyLabel(a.keyLabel) === normalizeKeyLabel(b.keyLabel) &&
+    (a.sharedConnectionId ?? null) === (b.sharedConnectionId ?? null)
   );
 }
 
@@ -48,6 +55,13 @@ export function isModelRoute(value: unknown): value is ModelRoute {
     'skipWhenQuotaExhausted' in v &&
     v.skipWhenQuotaExhausted !== undefined &&
     typeof v.skipWhenQuotaExhausted !== 'boolean'
+  )
+    return false;
+  if (
+    'sharedConnectionId' in v &&
+    v.sharedConnectionId !== undefined &&
+    v.sharedConnectionId !== null &&
+    typeof v.sharedConnectionId !== 'string'
   )
     return false;
   return true;

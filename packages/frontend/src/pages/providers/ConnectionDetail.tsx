@@ -56,6 +56,7 @@ import { getModelDisplayName } from '../../services/model-display.js';
 import CustomProviderForm from '../../components/CustomProviderForm.jsx';
 import '../../styles/routing.css';
 import { DisconnectCancelledError } from '../../services/routing-removal-confirm.js';
+import ShareSwitch from '../../components/ShareSwitch.jsx';
 
 const AUTH_TYPE_LABELS: Record<string, string> = {
   subscription: 'Subscriptions',
@@ -98,6 +99,8 @@ interface ConnectionInfo {
   key_prefix: string | null;
   connected_at: string;
   is_active: boolean;
+  /** Fork: offered to the install's other users. */
+  is_shared?: boolean;
   last_used_at: string | null;
 }
 
@@ -1303,6 +1306,26 @@ const ConnectionDetail: Component = () => {
                             </div>
                           </Show>
                         </div>
+
+                        {/* Fork: share this subscription with the install's other users. */}
+                        <Show when={c.auth_type === 'subscription'}>
+                          <div style="display: flex; align-items: center; justify-content: space-between; gap: 16px; padding: 12px 0; border-top: 1px solid hsl(var(--border));">
+                            <span style="display: flex; flex-direction: column; gap: 2px;">
+                              <span style="font-size: var(--font-size-sm); font-weight: 600; color: hsl(var(--foreground));">
+                                Share with other users
+                              </span>
+                              <span style="font-size: var(--font-size-xs); color: hsl(var(--muted-foreground));">
+                                Other users of this Manifest can pick its models when routing their
+                                harnesses. Your credential stays in your account.
+                              </span>
+                            </span>
+                            <ShareSwitch
+                              connectionId={c.id}
+                              label={c.label}
+                              shared={c.is_shared === true}
+                            />
+                          </div>
+                        </Show>
 
                         <Show when={c.is_active}>
                           {/* Models */}

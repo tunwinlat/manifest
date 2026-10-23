@@ -346,6 +346,11 @@ vi.mock('../../src/services/sse.js', () => ({
 }));
 
 const toastMock = vi.hoisted(() => ({ success: vi.fn(), error: vi.fn(), warning: vi.fn() }));
+const mockSetConnectionSharing = vi.fn().mockResolvedValue({});
+vi.mock('../../src/services/api/sharing.js', () => ({
+  setConnectionSharing: (...args: unknown[]) => mockSetConnectionSharing(...args),
+}));
+
 vi.mock('../../src/services/toast-store.js', () => ({
   toast: {
     success: (...args: unknown[]) => toastMock.success(...args),
@@ -1830,5 +1835,33 @@ describe('ConnectionDetail (analytics)', () => {
       ),
     );
     expect(routerState.navigate).toHaveBeenCalledWith('/providers/subscriptions');
+  });
+});
+
+describe('ConnectionDetail — Share (fork)', () => {
+  it('offers Share in Manage for a subscription connection', async () => {
+    apiMocks.getConnectionDetail.mockResolvedValue({
+      ...connectionDetail,
+      connection: {
+        ...connectionDetail.connection,
+        id: 'conn-sub',
+        auth_type: 'subscription',
+        label: 'Max',
+        is_shared: false,
+      },
+    });
+    render(() => <ConnectionDetail />);
+    await waitFor(() => expect(screen.getByText('Manage')).toBeDefined());
+    fireEvent.click(screen.getByText('Manage'));
+    expect(screen.getByText('Share with other users')).toBeDefined();
+    fireEvent.click(screen.getByRole('switch', { name: 'Share Max with other users' }));
+    await waitFor(() => expect(mockSetConnectionSharing).toHaveBeenCalledWith('conn-sub', true));
+  });
+
+  it('does not offer Share for an API key connection', async () => {
+    render(() => <ConnectionDetail />);
+    await waitFor(() => expect(screen.getByText('Manage')).toBeDefined());
+    fireEvent.click(screen.getByText('Manage'));
+    expect(screen.queryByText('Share with other users')).toBeNull();
   });
 });

@@ -16,6 +16,7 @@ describe('SetupController', () => {
   let mockGetLocalLlmHost: jest.Mock;
   let mockIsEmailConfigured: jest.Mock;
   let mockIsMcpEnabled: jest.Mock;
+  let mockIsSignupEnabled: jest.Mock;
 
   beforeEach(async () => {
     mockNeedsSetup = jest.fn();
@@ -26,6 +27,7 @@ describe('SetupController', () => {
     mockGetLocalLlmHost = jest.fn().mockReturnValue('localhost');
     mockIsEmailConfigured = jest.fn().mockReturnValue(true);
     mockIsMcpEnabled = jest.fn().mockReturnValue(true);
+    mockIsSignupEnabled = jest.fn().mockResolvedValue(true);
 
     const module: TestingModule = await Test.createTestingModule({
       controllers: [SetupController],
@@ -41,6 +43,7 @@ describe('SetupController', () => {
             getLocalLlmHost: mockGetLocalLlmHost,
             isEmailConfigured: mockIsEmailConfigured,
             isMcpEnabled: mockIsMcpEnabled,
+            isSignupEnabled: mockIsSignupEnabled,
           },
         },
       ],
@@ -69,6 +72,7 @@ describe('SetupController', () => {
         emailConfigured: true,
         privacyMode: false,
         mcpEnabled: true,
+        signupEnabled: true,
       });
     });
 
@@ -84,6 +88,7 @@ describe('SetupController', () => {
         emailConfigured: true,
         privacyMode: false,
         mcpEnabled: true,
+        signupEnabled: true,
       });
     });
 
@@ -100,6 +105,7 @@ describe('SetupController', () => {
         emailConfigured: true,
         privacyMode: false,
         mcpEnabled: true,
+        signupEnabled: true,
       });
     });
 
@@ -117,6 +123,7 @@ describe('SetupController', () => {
         emailConfigured: true,
         privacyMode: false,
         mcpEnabled: true,
+        signupEnabled: true,
       });
     });
 
@@ -134,6 +141,7 @@ describe('SetupController', () => {
         emailConfigured: true,
         privacyMode: false,
         mcpEnabled: true,
+        signupEnabled: true,
       });
     });
 
@@ -143,6 +151,13 @@ describe('SetupController', () => {
       mockGetLocalLlmHost.mockReturnValue('host.docker.internal');
       const result = await controller.getStatus();
       expect(result.localLlmHost).toBe('host.docker.internal');
+    });
+
+    it('reports signupEnabled=false once the administrator closed sign-up', async () => {
+      mockNeedsSetup.mockResolvedValue(false);
+      mockIsSignupEnabled.mockResolvedValue(false);
+      const result = await controller.getStatus();
+      expect(result.signupEnabled).toBe(false);
     });
 
     it('reports emailConfigured=false when no email provider is set', async () => {

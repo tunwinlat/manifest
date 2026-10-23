@@ -1,4 +1,5 @@
-import { Show, Suspense, createSignal, lazy, type Accessor, type Component } from 'solid-js';
+import { Show, Suspense, createSignal, type Accessor, type Component } from 'solid-js';
+import { lazyReload } from '../services/lazy-reload.js';
 import { useNavigate } from '@solidjs/router';
 import RoutingInstructionModal from './RoutingInstructionModal.js';
 import KeyPickerModal from './KeyPickerModal.js';
@@ -6,7 +7,7 @@ import KeyPickerModal from './KeyPickerModal.js';
 // These modals only mount behind a `<Show>` (dropdown open / provider modal
 // open). Lazy-load them so the heavy model picker and the ~130 kB
 // provider-select chunk stay out of the Routing route's initial bundle.
-const ModelPickerModal = lazy(() => import('./ModelPickerModal.js'));
+const ModelPickerModal = lazyReload(() => import('./ModelPickerModal.js'));
 import { PROVIDERS } from '../services/providers.js';
 import type {
   TierAssignment,
@@ -19,6 +20,7 @@ import type {
   ResponseMode,
 } from '../services/api.js';
 import type { CustomProviderPrefill, ProviderDeepLink } from '../services/routing-params.js';
+import type { SharedConnection } from '../services/api/sharing.js';
 import {
   activeRouteKeys,
   availableRouteKeysForModel,
@@ -69,6 +71,10 @@ interface RoutingModalsProps {
   onProviderUpdate: () => Promise<void>;
   onProviderPoll?: () => Promise<void>;
   onOpenProviderModal?: () => void;
+  /** Fork: subscriptions other users share, offered on default/custom routing. */
+  sharedConnections?: () => SharedConnection[];
+  onSharedOverride?: (tierId: string, modelName: string, connection: SharedConnection) => void;
+  onSharedFallback?: (tierId: string, modelName: string, connection: SharedConnection) => void;
 }
 
 interface PendingOverride {
@@ -161,6 +167,8 @@ const RoutingModals: Component<RoutingModalsProps> = (props) => {
               connectedProviders={props.connectedProviders()}
               requiredCapability={requiredCapabilityForTier(tierId())}
               onSelect={handleSelect}
+              sharedConnections={props.sharedConnections?.()}
+              onSelectShared={props.onSharedOverride}
               onClose={props.onDropdownClose}
               onConnectProviders={() => {
                 props.onDropdownClose();
@@ -299,6 +307,14 @@ const RoutingModals: Component<RoutingModalsProps> = (props) => {
                 connectedProviders={props.connectedProviders()}
                 requiredCapability={requiredCapabilityForTier(tierId())}
                 onSelect={handleFallbackSelect}
+                sharedConnections={props.sharedConnections?.()}
+                onSelectShared={
+                  props.onSharedFallback &&
+                  ((tid, model, connection) => {
+                    props.onFallbackPickerClose();
+                    props.onSharedFallback?.(tid, model, connection);
+                  })
+                }
                 onClose={props.onFallbackPickerClose}
                 onConnectProviders={() => {
                   props.onFallbackPickerClose();

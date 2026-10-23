@@ -407,6 +407,8 @@ export class ProviderAnalyticsController {
         key_prefix: conn.key_prefix,
         connected_at: conn.connected_at,
         is_active: conn.is_active,
+        // Fork: offered to the install's other users.
+        is_shared: conn.is_shared === true,
         last_used_at: lastUsedAt,
       },
       agents: (() => {
